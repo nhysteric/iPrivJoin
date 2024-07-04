@@ -1,0 +1,10 @@
+feature_count = 3
+[[feature]]
+type = 0
+name = "xxx"
+[[feature]]
+type = 1
+name = "yyy"
+[[feature]]
+type = 2
+name = "zzz"

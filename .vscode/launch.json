@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "i",
+            "type": "lldb",
+            "request": "launch",
+            "program": "build/iPrivJoin",
+            "args": [
+                "1",
+            ],
+            "cwd": "${workspaceFolder}",
+        }
+    ]
+}
