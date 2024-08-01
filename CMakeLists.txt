@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.19)
 
-set(CMAKE_TOOLCHAIN_FILE /home/nhy/vcpkg/scripts/buildsystems/vcpkg.cmake CACHE STRING "")
+# set(CMAKE_TOOLCHAIN_FILE /home/nhy/vcpkg/scripts/buildsystems/vcpkg.cmake CACHE STRING "")
 
 project(iPrivJoin VERSION 0.1.0)
 

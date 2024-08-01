@@ -1,0 +1,11 @@
+bins = 32768
+funcs = 2
+address = "localhost:8011"
+
+pa_elems = 19200
+pa_features = 45
+pb_elems = 19200
+pb_features = 45
+max_in_bin = 3
+
+
