@@ -1,53 +1,77 @@
+#include "client.h"
+#include <coproto/Socket/AsioSocket.h>
+#include <coproto/Socket/Socket.h>
+#include <cryptoTools/Common/Defines.h>
+#include <cryptoTools/Common/Matrix.h>
+#include <cryptoTools/Crypto/PRNG.h>
+#include <cstddef>
+#include <cstdlib>
+#include <vector>
+#include "constants.h"
+#include "joinData.h"
+#include "opprf.h"
+#include "oprf.h"
+#include "shuffle.h"
+#include "utlis.h"
+// 使用布谷鸟哈希的一方
 
-// #include "client.h"
-// #include <chrono>
-// #include <cryptoTools/Common/Defines.h>
-// #include <string>
-// #include "constants.h"
-// #include "shuffle.h"
-// #include "utlis.h"
-// // 使用布谷鸟哈希的一方
-// void client_run(
-//     const std::string inputFile, const std::string outputFIle, PsiAnalyticsContext &context)
-// {
-//     const auto start_time = std::chrono::system_clock::now();
-//     std::vector<uint64_t> bins;
-//     auto inputs = GetHashTableThroughFile(inputFile);
+Matrix pa_share(
+    const Matrix &origin,
+    PsiAnalyticsContext &context,
+    std::map<uint64_t, std::pair<uint64_t, uint64_t>> map)
+{
+    coproto::Socket chl = coproto::asioConnect(context.address, false);
 
-//     // 第一轮，作为接收方
-//     bins = opprf_receiver(inputs, context);
+    oc::PRNG prng(block(rand(), rand()));
+    Matrix share(context.bins, context.pa_features);
+    prng.get(share.data(), context.bins * context.pa_features);
+    auto p = chl.send(share);
+    coproto::sync_wait(p);
+    coproto::sync_wait(chl.flush());
+    context.totalReceive += chl.bytesReceived();
+    context.totalSend += chl.bytesSent();
+    chl.close();
+    for (size_t i = 0; i < context.bins; i++) {
+        auto it = map.find(i);
+        if (it != map.end()) {
+            auto k = it->second.first;
+            for (size_t j = 0; j < context.pa_features; j++) {
+                share(i, j) = origin(k, j) - share(i, j);
+            }
+        }
+    }
+    return share;
+}
 
-//     // 第二轮，作为发送方
+void client_run(PsiAnalyticsContext &context)
+{
+    const auto start_time = std::chrono::system_clock::now();
+    const auto init_start_time = std::chrono::system_clock::now();
 
-//     const auto oprf_start_time = std::chrono::system_clock::now();
-//     bins = oprf_sender(bins, context);
-//     const auto oprf_end_time = std::chrono::system_clock::now();
-//     const duration_millis oprf_duration = oprf_end_time - oprf_start_time;
-//     context.timings.oprf2nd = oprf_duration.count();
-//     // TODO:执行两轮shuffle，分别作为发送方与接收方
+    joinData pa(context);
 
-//     std::string address = context.address + ":" + std::to_string(context.port);
+    const auto init_end_time = std::chrono::system_clock::now();
+    const duration_millis init_time = init_end_time - init_start_time;
+    context.timings.init = init_time.count();
+    oc::PRNG prng(block(3, 4));
+    auto map = CuckooHash(pa.ids, context);
+    std::vector<block> key(context.bins);
+    prng.get(key.data(), context.bins);
+    for (const auto &[l, id] : map) {
+        key[l] = block(id.first, l);
+    }
+    auto r1 = opprfReceiver_1(key, context);
+    auto r2 = opprfReceiver_2(key, context);
+    auto newID = oprfSender(r1, context);
+    auto _a = pa_share(pa.features, context, map);
+    auto data_pa_join = mergeMatrix(newID, _a, r2);
 
-//     const auto shuffle1st_start = std::chrono::system_clock::now();
-//     // bins = mShuffleSender(bins, osuCrypto::log2ceil(bins.size()), address);
-//     const auto shuffle1st_end = std::chrono::system_clock::now();
-//     const duration_millis shuffle1st = shuffle1st_end - shuffle1st_start;
-//     context.timings.shuffle1st = shuffle1st.count();
-
-//     auto pi = generateRandomPermutation(osuCrypto::log2ceil(bins.size()), 123);
-//     const auto shuffle2nd_start = std::chrono::system_clock::now();
-//     bins = mShuffleReceiver(osuCrypto::log2ceil(bins.size()), pi, address);
-//     const auto shuffle2nd_end = std::chrono::system_clock::now();
-//     const duration_millis shuffle2nd = shuffle2nd_end - shuffle2nd_start;
-//     context.timings.shuffle2nd = shuffle2nd.count();
-
-//     const auto end_time = std::chrono::system_clock::now();
-//     const duration_millis total_duration = end_time - start_time;
-//     context.timings.total = total_duration.count();
-
-//     // std::ofstream fout(outputFIle);
-//     // for (auto value : bins)
-//     // {
-//     //     fout << static_cast<uint64_t>(value) << "\n";
-//     // }
-// }
+    auto [pa_data, p] = shuffle_receiver(context);
+    // permuteMatrix(data_pa_join, p);
+    matrixTransform(pa_data, data_pa_join);
+    shuffle_sender(pa_data, context);
+    const auto end_time = std::chrono::system_clock::now();
+    const duration_millis total_time = end_time - start_time;
+    context.timings.total = total_time.count();
+    context.print();
+}

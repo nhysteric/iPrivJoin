@@ -15,20 +15,35 @@
 #include <unistd.h>
 #include <utility>
 #include <vector>
-#include "../threadPool.h"
+#include <volePSI/Defines.h>
 #include "../ggm/ggm.h"
+#include "../threadPool.h"
+#include "context.h"
+#include "joinData.h"
+#include "lpn.h"
+#include "utlis.h"
 // 生成随机vector
 
 std::string incrementPort(const std::string &address, std::uint8_t offset);
-std::vector<uint64_t> generateRandomVector(const uint64_t &n, const int &seed)
+
+template <typename T>
+std::vector<T> generateRandomVector(const uint64_t &n, const uint64_t &seed)
 {
-    std::mt19937 rng(seed);
-    std::vector<uint64_t> vector(n);
-    for (int i = 0; i < n; ++i) {
-        vector[i] = rng();
-    }
+    volePSI::PRNG rng({ seed, 0 });
+    std::vector<T> vector(n);
+    rng.get<T>(vector.data(), n);
     return vector;
 }
+
+template <>
+std::vector<block> generateRandomVector(const uint64_t &n, const uint64_t &seed)
+{
+    volePSI::PRNG rng({ seed, 0 });
+    std::vector<block> vector(n);
+    rng.get<block>(vector.data(), n);
+    return vector;
+}
+
 // 生成从0到n-1的排列
 std::vector<uint64_t> generateRandomPermutation(const uint64_t &n, const int &seed)
 {
@@ -39,21 +54,20 @@ std::vector<uint64_t> generateRandomPermutation(const uint64_t &n, const int &se
     return permutation;
 }
 
-// 将给定向量按照全排列向量洗牌全排列
-void permuteVector(std::vector<uint64_t> &permutation, const std::vector<uint64_t> &pi)
+template <typename T>
+void permuteVector(std::vector<T> &permutation, const std::vector<uint64_t> &pi)
 {
     assert(permutation.size() == pi.size());
-    std::vector<uint64_t> resultVector(permutation.size());
+    std::vector<T> resultVector(permutation.size());
     std::transform(pi.begin(), pi.end(), resultVector.begin(), [&](uint64_t index) {
         return permutation[index];
     });
     permutation = std::move(resultVector);
 }
 
-// 将两个维数相等的向量逐元素异或，结果保存在第一个向量中
-void xorVectors(std::vector<uint64_t> &v1, const std::vector<uint64_t> &v2)
+template <typename T>
+void xorVectors(std::vector<T> &v1, const std::vector<T> &v2)
 {
-    // 检查向量长度是否相同
     assert(v1.size() == v2.size());
 
     // 逐元素异或
@@ -63,8 +77,8 @@ void xorVectors(std::vector<uint64_t> &v1, const std::vector<uint64_t> &v2)
 }
 
 // 将两个维数相等的向量洗牌后逐元素异或，结果保存在第一个向量中
-void xorVectorsWithPI(
-    std::vector<uint64_t> &v1, const std::vector<uint64_t> &v2, const std::vector<uint64_t> pi)
+template <typename T>
+void xorVectorsWithPI(std::vector<T> &v1, const std::vector<T> &v2, const std::vector<uint64_t> &pi)
 {
     // 检查向量长度是否相同
     assert(v1.size() == v2.size());
@@ -74,32 +88,33 @@ void xorVectorsWithPI(
     }
 }
 
-std::pair<uint64_t, std::vector<uint64_t>> mShuffleSend(
-    const uint64_t &high, const uint64_t key, const std::string address)
+std::pair<block, std::vector<block>> mShuffleSend(
+    const uint64_t &high, const block key, const std::string address, PsiAnalyticsContext &context)
 {
     GGMTree g(high, key);
-    ggm_send(g, address);
+    ggm_send(g, address, context);
     return std::make_pair(g.xorLayer(high - 1), g.leaf());
 }
 
-std::vector<uint64_t> mShuffleSender(
-    const std::vector<uint64_t> &x, const uint64_t &h, const std::string &address)
+std::vector<block> mShuffleSender(
+    const std::vector<block> &x,
+    const uint64_t &h,
+    const std::string &address,
+    PsiAnalyticsContext &context)
 {
     uint64_t t = 1 << (h - 1);
     assert(x.size() == t);
-    std::random_device rd;
-    std::mt19937_64 generator(rd());
-    std::uniform_int_distribution<uint64_t> distribution;
-    std::vector<uint64_t> b(t);
-    std::vector<uint64_t> a(t, 0);
-    std::vector<std::future<std::pair<uint64_t, std::vector<uint64_t>>>> results;
+    volePSI::PRNG prng({ 0, 0 });
+    std::vector<block> b(t);
+    std::vector<block> a(t, { 0, 0 });
+    std::vector<std::future<std::pair<block, std::vector<block>>>> results;
     ThreadPool pool(std::thread::hardware_concurrency() / 2);
     for (int i = 0; i < t; i++) {
-        GGMTree g(h, distribution(generator));
+        GGMTree g(h, prng.get());
         b.at(i) = g.xorLayer(h - 1);
         xorVectors(a, g.leaf());
         results.emplace_back(
-            pool.enqueue(mShuffleSend, h, distribution(generator), incrementPort(address, i)));
+            pool.enqueue(mShuffleSend, h, prng.get(), incrementPort(address, i), context));
     }
     for (int i = 0; i < t; i++) {
         auto p = results[i].get();
@@ -107,28 +122,35 @@ std::vector<uint64_t> mShuffleSender(
         xorVectors(a, p.second);
     }
 
-    auto socket = osuCrypto::cp::asioConnect(address, false);
+    const auto wait_start_time = std::chrono::system_clock::now();
+    coproto::Socket chl = coproto::asioConnect(address, true);
+    const auto wait_end_time = std::chrono::system_clock::now();
+    const duration_millis wait_time = wait_end_time - wait_start_time;
+    context.timings.wait += wait_time.count();
 
     xorVectors(a, x);
-    osuCrypto::cp::sync_wait(socket.send(a));
-    osuCrypto::cp::sync_wait(socket.flush());
-    socket.close();
+    osuCrypto::cp::sync_wait(chl.send(a));
+    osuCrypto::cp::sync_wait(chl.flush());
+    context.totalReceive += chl.bytesReceived();
+    context.totalSend += chl.bytesSent();
+    chl.close();
     return b;
 }
 
-std::vector<uint64_t> mShuffleReceiver(
-    const uint64_t &h, std::vector<uint64_t> &pi, const std::string &address)
+std::vector<block> mShuffleReceiver(
+    const uint64_t &h,
+    std::vector<uint64_t> &pi,
+    const std::string &address,
+    PsiAnalyticsContext &context)
 {
     uint64_t t = 1 << (h - 1);
-    std::vector<uint64_t> b(t);
-    std::vector<uint64_t> a_pi(t, 0);
-    std::random_device rd;
-    std::mt19937_64 generator(rd());
-    std::uniform_int_distribution<uint64_t> distribution;
+    std::vector<block> b(t);
+    std::vector<block> a_pi(t, { 0, 0 });
+    volePSI::PRNG prng({ 0, 0 });
     ThreadPool pool(std::thread::hardware_concurrency() / 2);
     std::vector<std::future<GGMTree>> results;
     for (int i = 0; i < t; i++) {
-        results.push_back(pool.enqueue(ggm_recv, pi[i], h, incrementPort(address, i)));
+        results.push_back(pool.enqueue(ggm_recv, pi[i], h, incrementPort(address, i), context));
     }
     for (int i = 0; i < t; i++) {
         auto g = results[i].get();
@@ -137,17 +159,24 @@ std::vector<uint64_t> mShuffleReceiver(
     }
     xorVectors(a_pi, b);
 
-    auto socket = osuCrypto::cp::asioConnect(address, true);
-    std::vector<uint64_t> xXORa(t, 0);
-    osuCrypto::cp::sync_wait(socket.recv(xXORa));
-    osuCrypto::cp::sync_wait(socket.flush());
-    socket.close();
+    const auto wait_start_time = std::chrono::system_clock::now();
+    coproto::Socket chl = coproto::asioConnect(address, false);
+    const auto wait_end_time = std::chrono::system_clock::now();
+    const duration_millis wait_time = wait_end_time - wait_start_time;
+    context.timings.wait += wait_time.count();
+    std::vector<block> xXORa(t, { 0, 0 });
+    osuCrypto::cp::sync_wait(chl.recv(xXORa));
+    osuCrypto::cp::sync_wait(chl.flush());
+    context.totalReceive += chl.bytesReceived();
+    context.totalSend += chl.bytesSent();
+    chl.close();
     xorVectorsWithPI(a_pi, xXORa, pi);
     return a_pi;
 }
 
 // 对一层进行全排列
-void sboxPermutation(std::vector<uint64_t> &p, const std::vector<std::vector<uint64_t>> sbox)
+template <typename T>
+void sboxPermutation(std::vector<T> &p, const std::vector<std::vector<uint64_t>> sbox)
 {
     assert(p.size() / 2 == sbox.size());
     auto t = p.begin();
@@ -173,11 +202,9 @@ std::string incrementPort(const std::string &address, std::uint8_t offset = 1)
     return address.substr(0, colonPos) + ":" + oss.str();
 }
 
-OShullfe::OShullfe(uint64_t nums, uint64_t layers) : nums(nums), layers(layers)
+OShullfe::OShullfe(uint64_t nums, uint64_t layers) : layers(layers), nums(nums)
 {
-    std::random_device rd;
-    std::mt19937_64 generator(rd());
-    std::uniform_int_distribution<uint64_t> distribution;
+    volePSI::PRNG prng({ 0, 0 });
 
     uint64_t players = layers / 2;
     uint64_t slayers = layers - players;
@@ -192,12 +219,12 @@ OShullfe::OShullfe(uint64_t nums, uint64_t layers) : nums(nums), layers(layers)
 
     for (int i = 0; i < slayers; i++) {
         for (int j = 0; j < suints; j++) {
-            auto temp = generateRandomPermutation(2, distribution(generator));
+            auto temp = generateRandomPermutation(2, prng.get());
             std::copy(temp.begin(), temp.begin() + 2, sbox.at(i).at(j).begin());
         }
     }
     for (int i = 0; i < players; i++) {
-        pbox.at(i) = generateRandomPermutation(nums, distribution(generator));
+        pbox.at(i) = generateRandomPermutation(nums, prng.get());
     }
     for (int i = 0; i < layers; i++) {
         if (i % 2 == 0) {
@@ -208,33 +235,42 @@ OShullfe::OShullfe(uint64_t nums, uint64_t layers) : nums(nums), layers(layers)
     }
 }
 
-std::pair<std::vector<uint64_t>, std::vector<uint64_t>> oShuffleReceiver(
-    const size_t &nums, const uint64_t &layers, const std::string &address)
+std::pair<std::vector<block>, std::vector<uint64_t>> oShuffleReceiver(
+    const size_t &nums,
+    const uint64_t &layers,
+    const std::string &address,
+    PsiAnalyticsContext &context)
 {
     OShullfe oshullfe(nums, layers);
-    auto socket = osuCrypto::cp::asioConnect(address, false);
-    std::vector<uint64_t> temp(nums, 0);
+    const auto wait_start_time = std::chrono::system_clock::now();
+    coproto::Socket chl = coproto::asioConnect(context.address, false);
+    const auto wait_end_time = std::chrono::system_clock::now();
+    const duration_millis wait_time = wait_end_time - wait_start_time;
+    context.timings.wait += wait_time.count();
+    std::vector<block> temp(nums, { 0, 0 });
     ThreadPool pool(std::thread::hardware_concurrency() / 2);
     for (int i = 0; i < layers; i++) {
         if (i % 2 == 0) {
             sboxPermutation(temp, oshullfe.sbox.at(i / 2));
             for (int j = 0; j < nums / 2; j++) {
-                auto tempT =
-                    mShuffleReceiver(2, oshullfe.sbox.at(i / 2).at(j), incrementPort(address));
+                auto tempT = mShuffleReceiver(
+                    2, oshullfe.sbox.at(i / 2).at(j), incrementPort(address), context);
                 temp.at(2 * j) ^= tempT.at(0);
                 temp.at(2 * j + 1) ^= tempT.at(1);
             }
         } else {
-            osuCrypto::cp::sync_wait(socket.send(oshullfe.pbox.at(i / 2)));
+            osuCrypto::cp::sync_wait(chl.send(oshullfe.pbox.at(i / 2)));
+            coproto::sync_wait(chl.flush());
             permuteVector(temp, oshullfe.pbox.at(i / 2));
         }
     }
-    socket.close();
+    context.totalReceive += chl.bytesReceived();
+    context.totalSend += chl.bytesSent();
+    chl.close();
     return std::make_pair(std::move(temp), std::move(oshullfe.permutation));
 }
 
-void oShuffleSender(
-    std::vector<uint64_t> &inputs, const uint64_t &layers, const std::string &address)
+void oShuffleSender(std::vector<block> &inputs, PsiAnalyticsContext &context)
 {
     size_t nums = inputs.size();
 
@@ -242,24 +278,95 @@ void oShuffleSender(
     std::mt19937_64 generator(rd());
     std::uniform_int_distribution<uint64_t> distribution;
 
-    auto socket = osuCrypto::cp::asioConnect(address, true);
+    const auto wait_start_time = std::chrono::system_clock::now();
+    coproto::Socket chl = coproto::asioConnect(context.address, true);
+    const auto wait_end_time = std::chrono::system_clock::now();
+    const duration_millis wait_time = wait_end_time - wait_start_time;
+    context.timings.wait += wait_time.count();
 
     std::vector<uint64_t> pbox(inputs.size());
-    for (int i = 0; i < layers; i++) {
+    for (int i = 0; i < context.layers; i++) {
         if (i % 2 == 0) {
             for (int j = 0; j < nums / 2; j++) {
                 auto tempT = mShuffleSender(
-                    std::vector<uint64_t>(inputs.begin() + 2 * j, inputs.begin() + 2 * j + 2),
+                    std::vector<block>(inputs.begin() + 2 * j, inputs.begin() + 2 * j + 2),
                     2,
-                    incrementPort(address));
+                    incrementPort(context.address),
+                    context);
                 inputs.at(2 * j) = tempT.at(0);
                 inputs.at(2 * j + 1) = tempT.at(1);
             }
         } else {
-            osuCrypto::cp::sync_wait(socket.recv(pbox));
+            osuCrypto::cp::sync_wait(chl.recv(pbox));
+            osuCrypto::cp::sync_wait(chl.flush());
             permuteVector(inputs, pbox);
         }
     }
-    osuCrypto::cp::sync_wait(socket.flush());
-    socket.close();
+    context.totalReceive += chl.bytesReceived();
+    context.totalSend += chl.bytesSent();
+    chl.close();
+}
+
+void shuffle_sender(Matrix &inputs, PsiAnalyticsContext &context)
+{
+    const auto start_time = std::chrono::system_clock::now();
+    oc::PRNG prng(block(rand(), rand()));
+    std::vector<block> mask(context.bins * 2);
+    prng.get(mask.data(), context.bins * 2);
+    auto mask_ = mask;
+    oShuffleSender(mask, context);
+    const auto wait_start_time = std::chrono::system_clock::now();
+    coproto::Socket chl = coproto::asioConnect(context.address, true);
+    const auto wait_end_time = std::chrono::system_clock::now();
+    const duration_millis wait_time = wait_end_time - wait_start_time;
+    context.timings.wait += wait_time.count();
+    inputs += encode(mask_, context);
+    osuCrypto::cp::sync_wait(chl.send(inputs));
+    coproto::sync_wait(chl.flush());
+    context.totalReceive += chl.bytesReceived();
+    context.totalSend += chl.bytesSent();
+    chl.close();
+    inputs.setZero();
+    inputs -= encode(mask, context);
+    const auto end_time = std::chrono::system_clock::now();
+    const duration_millis shuffle_time = end_time - start_time;
+    switch (context.role) {
+    case PA:
+        context.timings.shuffle2nd = shuffle_time.count();
+        break;
+    case PB:
+        context.timings.shuffle1st = shuffle_time.count();
+        break;
+    }
+}
+
+std::pair<Matrix, std::vector<uint64_t>> shuffle_receiver(PsiAnalyticsContext &context)
+{
+    const auto start_time = std::chrono::system_clock::now();
+    Matrix outputs(context.bins, context.pb_features + context.pa_features + 1);
+    auto [mask, p] = oShuffleReceiver(context.bins * 2, context.layers, context.address, context);
+    const auto wait_start_time = std::chrono::system_clock::now();
+    coproto::Socket chl = coproto::asioConnect(context.address, false);
+    const auto wait_end_time = std::chrono::system_clock::now();
+    const duration_millis wait_time = wait_end_time - wait_start_time;
+    context.timings.wait += wait_time.count();
+    osuCrypto::cp::sync_wait(chl.recv(outputs));
+    coproto::sync_wait(chl.flush());
+    context.totalReceive += chl.bytesReceived();
+    context.totalSend += chl.bytesSent();
+    chl.close();
+
+    // permuteMatrix(outputs, p);
+    outputs -= encode(mask, context);
+    const auto end_time = std::chrono::system_clock::now();
+    const duration_millis shuffle_time = end_time - start_time;
+    switch (context.role) {
+    case PA:
+        context.timings.shuffle1st = shuffle_time.count();
+        break;
+    case PB:
+        context.timings.shuffle2nd = shuffle_time.count();
+        break;
+    }
+    return std::make_pair(outputs, p);
 }

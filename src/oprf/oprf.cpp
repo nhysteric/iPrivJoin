@@ -6,66 +6,55 @@
 #include <vector>
 #include <volePSI/RsOprf.h>
 
-std::vector<block> oprfSender(const std::vector<block> &inputs, std::string &address)
+std::vector<block> oprfSender(const std::vector<block> &inputs, PsiAnalyticsContext &context)
 {
-    coproto::Socket chl = coproto::asioConnect(address, true);
+    const auto start_time = std::chrono::system_clock::now();
+
+    const auto wait_start_time = std::chrono::system_clock::now();
+    coproto::Socket chl = coproto::asioConnect(context.address, true);
+    const auto wait_end_time = std::chrono::system_clock::now();
+    const duration_millis wait_time = wait_end_time - wait_start_time;
+    context.timings.wait += wait_time.count();
+
     oc::PRNG prng(block(0, 0));
     volePSI::RsOprfSender sender;
-    auto p = sender.send(inputs.size(), prng, chl, 1);
+    auto p = sender.send(context.bins, prng, chl, 1);
     coproto::sync_wait(p);
-    std::vector<oc::block> result(inputs.size());
+    std::vector<oc::block> result(context.bins);
     sender.eval(inputs, result);
+    coproto::sync_wait(chl.flush());
+    context.totalReceive += chl.bytesReceived();
+    context.totalSend += chl.bytesSent();
     chl.close();
+
+    const auto end_time = std::chrono::system_clock::now();
+    const duration_millis oprf_time = end_time - start_time;
+    context.timings.oprf = oprf_time.count();
     return result;
 }
 
-std::vector<block> oprfReceiver(const std::vector<block> &inputs, std::string &address)
+std::vector<block> oprfReceiver(const std::vector<block> &inputs, PsiAnalyticsContext &context)
 {
-    std::vector<oc::block> result(inputs.size());
-    coproto::Socket chl = coproto::asioConnect(address, false);
+    const auto start_time = std::chrono::system_clock::now();
+
+    const auto wait_start_time = std::chrono::system_clock::now();
+    coproto::Socket chl = coproto::asioConnect(context.address, false);
+    const auto wait_end_time = std::chrono::system_clock::now();
+    const duration_millis wait_time = wait_end_time - wait_start_time;
+    context.timings.wait += wait_time.count();
+
+    std::vector<oc::block> result(context.bins);
+
     oc::PRNG prng(oc::block(0, 0));
     volePSI::RsOprfReceiver receiver;
     auto p0 = receiver.receive(inputs, result, prng, chl, 1);
     coproto::sync_wait(p0);
+    coproto::sync_wait(chl.flush());
+    context.totalReceive += chl.bytesReceived();
+    context.totalSend += chl.bytesSent();
     chl.close();
+    const auto end_time = std::chrono::system_clock::now();
+    const duration_millis oprf_time = end_time - start_time;
+    context.timings.oprf = oprf_time.count();
     return result;
-}
-
-inline auto eval(macoro::task<> &t0, macoro::task<> &t1)
-{
-    auto r = macoro::sync_wait(macoro::when_all_ready(std::move(t0), std::move(t1)));
-    std::get<0>(r).result();
-    std::get<1>(r).result();
-}
-
-void RsOprf_eval_test()
-{
-    using namespace volePSI;
-    using namespace oc;
-    using coproto::LocalAsyncSocket;
-    RsOprfSender sender;
-    RsOprfReceiver recver;
-
-    auto sockets = LocalAsyncSocket::makePair();
-    u64 n = 100;
-    PRNG prng0(block(0, 0));
-    PRNG prng1(block(0, 1));
-
-    std::vector<block> vals(n), recvOut(n);
-
-    prng0.get(vals.data(), n);
-
-    auto p0 = sender.send(n, prng0, sockets[0]);
-    auto p1 = recver.receive(vals, recvOut, prng1, sockets[1]);
-
-    eval(p0, p1);
-    std::cout << "end\n";
-    std::vector<block> vv(n);
-    sender.eval(vals, vv);
-    prng0.get(vals.data(), n);
-    for (u64 i = 0; i < n; ++i) {
-        auto v = sender.eval(vals[i]);
-
-        std::cout << i << " " << recvOut[i] << " " << v << " " << vv[i] << std::endl;
-    }
 }

@@ -1,2 +1,4 @@
 **/.cache/*
 build
+test
+nohup.out

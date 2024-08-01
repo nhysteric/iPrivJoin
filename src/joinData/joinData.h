@@ -1,13 +1,13 @@
 #pragma once
+#include <cryptoTools/Common/Matrix.h>
 #include <cryptoTools/Common/block.h>
 #include <cstdint>
 #include <cstring>
 #include <string>
 #include <vector>
-enum serializeType { NUM, TEXT, BOOL };
-
+#include "context.h"
 using block = osuCrypto::block;
-
+using Matrix = osuCrypto::Matrix<block>;
 template <typename T>
 void to_block(const T &value, block &b)
 {
@@ -44,27 +44,9 @@ inline std::string from_block(const block &b)
 
 class joinData;
 
-struct feature {
-private:
-    std::string name;
-    block data;
-    serializeType type;
-
-public:
-    feature(const std::string name) : name(name), data(0)
-    {}
-    feature() = default;
-    ~feature() = default;
-    feature(const feature &) = default;
-    feature(feature &&) = default;
-    feature &operator=(const feature &) = default;
-    feature &operator=(feature &&) = default;
-    friend class joinData;
-};
-
 class joinData {
 public:
-    joinData(const std::string &config_file, const std::string &data_file);
+    joinData(const PsiAnalyticsContext &context);
     joinData(const joinData &) = default;
     joinData(joinData &&) = default;
     ~joinData() = default;
@@ -72,14 +54,7 @@ public:
     joinData &operator=(const joinData &) = default;
     joinData &operator=(joinData &&) = default;
 
-    const std::vector<std::vector<feature>> &getFeatures()
-    {
-        return features;
-    }
-
     void print();
-
-private:
     std::vector<uint64_t> ids;
-    std::vector<std::vector<feature>> features;
+    Matrix features;
 };

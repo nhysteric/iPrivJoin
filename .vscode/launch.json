@@ -2,7 +2,17 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "i",
+            "name": "pa",
+            "type": "lldb",
+            "request": "launch",
+            "program": "build/iPrivJoin",
+            "args": [
+                "0",
+            ],
+            "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "pb",
             "type": "lldb",
             "request": "launch",
             "program": "build/iPrivJoin",
@@ -10,6 +20,6 @@
                 "1",
             ],
             "cwd": "${workspaceFolder}",
-        }
+        },
     ]
 }

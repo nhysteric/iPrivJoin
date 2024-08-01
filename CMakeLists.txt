@@ -18,23 +18,24 @@ aux_source_directory(src/ggm DIR_GGM)
 aux_source_directory(src/joinData DIR_JOINDATA)
 aux_source_directory(src/opprf DIR_OPPRF)
 aux_source_directory(src/oprf DIR_OPRF)
+aux_source_directory(src/lpn DIR_LPN)
 
 add_executable(
   ${CUSTOM_NAME}
   main.cpp
   ${DIR_OPRF}
   ${DIR_OPPRF}
-
-  # ${DIR_SRC}
-  # ${DIR_SHUFFLE}
-  # ${DIR_GGM}
+  ${DIR_SRC}
+  ${DIR_SHUFFLE}
+  ${DIR_GGM}
   ${DIR_JOINDATA}
+  ${DIR_LPN}
 )
 
 
 
 
-include_directories(extern src/shuffle src/ggm src/joinData src/opprf src/oprf )
+include_directories(src extern src/shuffle src/ggm src/joinData src/opprf src/oprf src/lpn)
 target_link_libraries(${CUSTOM_NAME} visa::volePSI oc::libOTe Kuku::kuku)
 target_compile_options(${CUSTOM_NAME} PUBLIC -march=native -std=c++20) 
 target_include_directories(${CUSTOM_NAME} PUBLIC ${volePSI_DIR})

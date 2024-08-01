@@ -4,85 +4,47 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <volePSI/Defines.h>
 #include "csv.hpp"
-#include "toml.hpp"
-struct config {
-    std::string name;
-    serializeType type;
-};
 
-void joinData::print()
+joinData::joinData(const PsiAnalyticsContext &context)
 {
-    for (auto &ff : features) {
-        for (auto &feature : ff) {
-            switch (feature.type) {
-            case BOOL: {
-                bool b = from_block<bool>(feature.data);
-                std::cout << b<<"\n";
-            } break;
-            case NUM: {
-                long double num = from_block<long double>(feature.data);
-                std::cout << num<<"\n";
-            } break;
-            case TEXT: {
-                std::string s = from_block<std::string>(feature.data);
-                std::cout << s<<"\n";
-            } break;
-            }
-        }
+    auto &configs = context.role == PA ? context.pa_config : context.pb_config;
+    volePSI::PRNG prng({ 526, 108 });
+    switch (context.role) {
+    case PA:
+        features = Matrix(context.pa_elems, context.pa_features);
+        prng.get(features.data(), context.pa_elems * context.pa_features);
+        break;
+    case PB:
+        features = Matrix(context.pb_elems, context.pb_features);
+        prng.get(features.data(), context.pb_elems * context.pb_features);
+        break;
     }
-}
-
-joinData::joinData(const std::string &config_file, const std::string &data_file)
-{
-    std::vector<config> configs;
-    auto table = toml::parse_file(config_file);
-    if (table["feature"].is_array_of_tables()) {
-        for (auto &feature : *table["feature"].as_array()) {
-            auto f = *feature.as_table();
-            config c;
-            c.name = f["name"].value_or("1");
-            switch (f["type"].value_or(0)) {
-            default:
-            case 0:
-                c.type = NUM;
-                break;
-            case 1:
-                c.type = TEXT;
-                break;
-            case 2:
-                c.type = BOOL;
-                break;
+    if (!context.is_test) {
+        csv::CSVReader reader(context.data_file);
+        for (auto &row : reader) {
+            size_t i = 0;
+            uint64_t id = std::atoi(row[0].get().c_str());
+            ids.push_back(id);
+            for (size_t j = 1; j < row.size(); j++) {
+                block b;
+                switch (configs[j - 1].type) {
+                case NUM: {
+                    to_block(row[j].get<long double>(), b);
+                } break;
+                case TEXT: {
+                    to_block(row[j].get<std::string>(), b);
+                    break;
+                }
+                case BOOL:
+                    to_block(row[j].get<bool>(), b);
+                    break;
+                }
+                features(i, j) = b;
             }
-            configs.push_back(c);
+            i++;
         }
-    }
-
-    csv::CSVReader reader(data_file);
-    for (auto &row : reader) {
-        uint64_t id = std::atoi(row[0].get().c_str());
-        ids.push_back(id);
-        std::vector<feature> feature_row;
-        for (size_t index = 1; index < row.size(); index++) {
-            feature f(configs[index].name);
-            switch (configs[index - 1].type) {
-            case NUM: {
-                to_block(row[index].get<long double>(), f.data);
-                f.type = NUM;
-            } break;
-            case TEXT: {
-                to_block(row[index].get<std::string>(), f.data);
-                f.type = TEXT;
-                break;
-            }
-            case BOOL:
-                to_block(row[index].get<bool>(), f.data);
-                f.type = BOOL;
-                break;
-            }
-            feature_row.push_back(f);
-        }
-        features.push_back(feature_row);
     }
 }
 
