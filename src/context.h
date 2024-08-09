@@ -7,7 +7,6 @@
 #include <fstream>
 #include <iostream>
 #include <string>
-#include <thread>
 #include <vector>
 #include "toml.hpp"
 using milliseconds_ratio = std::ratio<1, 1000>;

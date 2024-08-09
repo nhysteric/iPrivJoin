@@ -1,7 +1,7 @@
 bins = 8192
 funcs = 4
 address = "localhost:8011"
-threads = 20
+threads = 1
 pa_elems = 3616
 pa_features = 9
 pb_elems = 3616
