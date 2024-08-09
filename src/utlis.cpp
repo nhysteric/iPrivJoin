@@ -1,3 +1,4 @@
+#include "utlis.h"
 #include <algorithm>
 #include <cassert>
 #include <coproto/Common/macoro.h>
@@ -11,16 +12,40 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <iostream>
 #include <kuku/common.h>
 #include <kuku/kuku.h>
 #include <kuku/locfunc.h>
 #include <libOTe/Tools/Coproto.h>
 #include <map>
+#include <set>
 #include <utility>
 #include <vector>
 #include "constants.h"
+#include "context.h"
 #include "joinData.h"
-#include "utlis.h"
+
+uint64_t nextPowerOf2(uint64_t n)
+{
+    if (n == 0) {
+        return 1;
+    }
+
+    if ((n & (n - 1)) == 0) {
+        return n;
+    }
+
+    n--;
+    n |= n >> 1;
+    n |= n >> 2;
+    n |= n >> 4;
+    n |= n >> 8;
+    n |= n >> 16;
+    n |= n >> 32;
+    n++;
+
+    return n;
+}
 
 void operator-=(Matrix &a, const Matrix &b)
 {
@@ -133,9 +158,11 @@ std::map<uint64_t, std::pair<uint64_t, uint64_t>> CuckooHash(
 {
     const auto start_time = std::chrono::system_clock::now();
 
-    kuku::KukuTable table(context.bins, 0, 2, kuku::make_random_item(), 3, kuku::make_item(0, 0));
-    std::for_each(ids.begin(), ids.end(), [&table](const uint64_t &v) {
+    kuku::KukuTable table(
+        context.bins, 0, context.funcs, kuku::make_random_item(), 10, kuku::make_item(0, 0));
+    std::for_each( ids.begin(), ids.end(), [&table](const uint64_t &v) {
         if (!table.insert(kuku::make_item(v, 0))) {
+            std::cout << "failed in kuku table" << std::endl;
             throw "failed in kuku table";
         }
     });
@@ -144,10 +171,11 @@ std::map<uint64_t, std::pair<uint64_t, uint64_t>> CuckooHash(
         kuku::QueryResult res = table.query(kuku::make_item(ids[i], 0));
         loc_id_map[res.location()] = std::make_pair(i, ids[i]);
     }
-    return loc_id_map;
+
     const auto end_time = std::chrono::system_clock::now();
     const duration_millis hash_time = end_time - start_time;
     context.timings.hashing = hash_time.count();
+    return loc_id_map;
 }
 
 std::map<uint64_t, std::vector<std::pair<uint64_t, uint64_t>>> SimpleHash(
@@ -162,13 +190,19 @@ std::map<uint64_t, std::vector<std::pair<uint64_t, uint64_t>>> SimpleHash(
     std::map<uint64_t, std::vector<std::pair<uint64_t, uint64_t>>> loc_index_id_map;
 
     for (size_t i = 0; i < ids.size(); i++) {
+        std::set<uint64_t> sets = std::set<uint64_t>();
         for (auto f : funcs) {
             uint64_t loc = f(kuku::make_item(ids[i], 0));
-
+            // 偶尔会出现hash到一个桶里的情况，这回导致opprf失效，这里直接跳过
+            if (!sets.insert(loc).second) {
+                continue;
+            }
             if (loc_index_id_map.find(loc) != loc_index_id_map.end()) {
                 loc_index_id_map.at(loc).push_back(std::make_pair(i, ids[i]));
-                if (loc_index_id_map.at(loc).size() > context.max_in_bin)
+                if (loc_index_id_map.at(loc).size() > context.max_in_bin) {
+                    std::cout << "max_in_bin" << std::endl;
                     throw "max_in_bin";
+                }
             } else {
                 std::vector<std::pair<uint64_t, uint64_t>> temp;
                 temp.push_back(std::make_pair(i, ids[i]));
@@ -205,10 +239,16 @@ std::vector<block> minus(const std::vector<block> &a, const std::vector<block> &
     return result;
 }
 
-Matrix mergeMatrix(const std::vector<block> ids, const Matrix &a, const Matrix &b)
+Matrix mergeMatrix(
+    const std::vector<block> ids, const Matrix &a, const Matrix &b, PsiAnalyticsContext &context)
 {
     assert(a.rows() == b.rows() && a.rows() == ids.size());
-    Matrix v(a.rows(), a.cols() + b.cols() + 1);
+    uint64_t fill_bins = nextPowerOf2(context.bins);
+    context.fill_bins = fill_bins;
+    context.J = std::vector<block>(fill_bins);
+    oc::PRNG prng(block(context.seedJ));
+    Matrix v(fill_bins, a.cols() + b.cols() + 1);
+    prng.get(context.J.data(), fill_bins);
     for (size_t i = 0; i < a.rows(); i++) {
         v(i, 0) = ids[i];
         for (size_t j = 0; j < a.cols(); j++) {

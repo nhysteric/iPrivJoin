@@ -21,7 +21,7 @@ void opprfSender_1(
 
     volePSI::RsOpprfSender sender;
     oc::PRNG prng(block(0, 0));
-    auto p = sender.send(context.bins, key, value, prng, 1, chl);
+    auto p = sender.send(context.bins, key, value, prng, context.threads, chl);
     coproto::sync_wait(p);
     coproto::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
@@ -46,7 +46,7 @@ std::vector<block> opprfReceiver_1(const std::vector<block> &key, PsiAnalyticsCo
     std::vector<block> outputs(context.bins);
     volePSI::RsOpprfReceiver receiver;
     oc::PRNG prng(block(0, 0));
-    auto p = receiver.receive(context.bins * context.max_in_bin, key, outputs, prng, 1, chl);
+    auto p = receiver.receive(context.bins * context.max_in_bin, key, outputs, prng, context.threads, chl);
     coproto::sync_wait(p);
     coproto::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
@@ -73,7 +73,7 @@ void opprfSender_2(
 
     volePSI::RsOpprfSender sender;
     oc::PRNG prng(block(0, 0));
-    auto p = sender.send(context.bins, key, value, prng, 1, chl);
+    auto p = sender.send(context.bins, key, value, prng, context.threads, chl);
     coproto::sync_wait(p);
     coproto::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
@@ -97,7 +97,7 @@ oc::Matrix<block> opprfReceiver_2(const std::vector<block> &key, PsiAnalyticsCon
     volePSI::RsOpprfReceiver receiver;
     oc::PRNG prng(block(0, 0));
 
-    auto p = receiver.receive(context.bins * context.max_in_bin, key, outputs, prng, 1, chl);
+    auto p = receiver.receive(context.bins * context.max_in_bin, key, outputs, prng, context.threads, chl);
     coproto::sync_wait(p);
     coproto::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();

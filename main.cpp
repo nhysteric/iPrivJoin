@@ -20,13 +20,43 @@ int main(int argc, char **argv)
     std::string task_name = argv[1];
     std::string config_file = "test/config/" + task_name + ".toml";
     std::cout << config_file << std::endl;
-    std::string output_filePA = "test/wan/" + task_name + "_PA.txt";
-    std::string output_filePB = "test/wan/" + task_name + "_PB.txt";
+    std::string output_filePA = "test/"  + task_name + "_PA.txt";
+    std::string output_filePB = "test/"  + task_name + "_PB.txt";
     PsiAnalyticsContext contextPA(PA, config_file, "PA.csv", output_filePA);
     PsiAnalyticsContext contextPB(PB, config_file, "PB.csv", output_filePB);
     auto futurePA = std::async(client_run, std::ref(contextPA));
     auto futurePB = std::async(server_run, std::ref(contextPB));
-    futurePA.get();
+    std::vector<std::future<void>> futures;
+    futures.push_back(std::move(futurePA));
+    futures.push_back(std::move(futurePB));
+    std::exception_ptr eptr = nullptr;
+    while (!futures.empty()) {
+        for (auto it = futures.begin(); it != futures.end();) {
+            auto status = it->wait_for(std::chrono::milliseconds(100));
+            if (status == std::future_status::ready) {
+                try {
+                    it->get(); // 获取结果或抛出异常
+                } catch (...) {
+                    eptr = std::current_exception(); // 捕获异常
+                }
+                it = futures.erase(it); // 移除已完成的future
+            } else {
+                ++it;
+            }
+        }
+        if (eptr) {
+            break; // 如果捕获了异常，退出循环
+        }
+    }
+    // 处理捕获到的异常
+    if (eptr) {
+        try {
+            std::rethrow_exception(eptr); // 重新抛出异常
+        } catch (const std::exception &e) {
+            std::cerr << "Exception caught: " << e.what() << std::endl;
+        }
+        std::terminate(); // 终止程序以避免进一步的死锁或其他问题
+    }
     // if (role == 0) {
     //     PsiAnalyticsContext context(PA, config_file, "PA.csv", output_filePA);
     //     client_run(context);
@@ -34,6 +64,8 @@ int main(int argc, char **argv)
     //     PsiAnalyticsContext context(PB, config_file, "PB.csv", output_filePA);
     //     server_run(context);
     // }
+    // 不知道为什么不能正常退出
+    std::terminate();
     return 0;
     // osuCrypto::ExConvCode ecc;
     // ecc.config(1);

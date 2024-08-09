@@ -1,10 +1,9 @@
-bins = 4096
-funcs = 2
+bins = 8192
+funcs = 4
 address = "localhost:8011"
-
+threads = 20
 pa_elems = 3616
 pa_features = 9
 pb_elems = 3616
 pb_features = 8
-max_in_bin = 3
-
+max_in_bin = 9

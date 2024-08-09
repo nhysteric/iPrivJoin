@@ -311,8 +311,8 @@ void shuffle_sender(Matrix &inputs, PsiAnalyticsContext &context)
 {
     const auto start_time = std::chrono::system_clock::now();
     oc::PRNG prng(block(rand(), rand()));
-    std::vector<block> mask(context.bins * 2);
-    prng.get(mask.data(), context.bins * 2);
+    std::vector<block> mask(context.fill_bins);
+    prng.get(mask.data(), context.fill_bins);
     auto mask_ = mask;
     oShuffleSender(mask, context);
     const auto wait_start_time = std::chrono::system_clock::now();
@@ -320,14 +320,14 @@ void shuffle_sender(Matrix &inputs, PsiAnalyticsContext &context)
     const auto wait_end_time = std::chrono::system_clock::now();
     const duration_millis wait_time = wait_end_time - wait_start_time;
     context.timings.wait += wait_time.count();
-    inputs += encode(mask_, context);
+    inputs += khprf(mask_, context);
     osuCrypto::cp::sync_wait(chl.send(inputs));
     coproto::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
     context.totalSend += chl.bytesSent();
     chl.close();
     inputs.setZero();
-    inputs -= encode(mask, context);
+    inputs -= khprf(mask, context);
     const auto end_time = std::chrono::system_clock::now();
     const duration_millis shuffle_time = end_time - start_time;
     switch (context.role) {
@@ -343,8 +343,8 @@ void shuffle_sender(Matrix &inputs, PsiAnalyticsContext &context)
 std::pair<Matrix, std::vector<uint64_t>> shuffle_receiver(PsiAnalyticsContext &context)
 {
     const auto start_time = std::chrono::system_clock::now();
-    Matrix outputs(context.bins, context.pb_features + context.pa_features + 1);
-    auto [mask, p] = oShuffleReceiver(context.bins * 2, context.layers, context.address, context);
+    Matrix outputs(context.fill_bins, context.pb_features + context.pa_features + 1);
+    auto [mask, p] = oShuffleReceiver(context.fill_bins, context.layers, context.address, context);
     const auto wait_start_time = std::chrono::system_clock::now();
     coproto::Socket chl = coproto::asioConnect(context.address, false);
     const auto wait_end_time = std::chrono::system_clock::now();
@@ -357,7 +357,7 @@ std::pair<Matrix, std::vector<uint64_t>> shuffle_receiver(PsiAnalyticsContext &c
     chl.close();
 
     // permuteMatrix(outputs, p);
-    outputs -= encode(mask, context);
+    outputs -= khprf(mask, context);
     const auto end_time = std::chrono::system_clock::now();
     const duration_millis shuffle_time = end_time - start_time;
     switch (context.role) {

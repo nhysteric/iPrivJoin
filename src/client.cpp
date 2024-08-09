@@ -9,6 +9,7 @@
 #include <vector>
 #include "constants.h"
 #include "joinData.h"
+#include "lpn.h"
 #include "opprf.h"
 #include "oprf.h"
 #include "shuffle.h"
@@ -58,18 +59,45 @@ void client_run(PsiAnalyticsContext &context)
     std::vector<block> key(context.bins);
     prng.get(key.data(), context.bins);
     for (const auto &[l, id] : map) {
-        key[l] = block(id.first, l);
+        key[l] = block(l, id.first);
     }
     auto r1 = opprfReceiver_1(key, context);
     auto r2 = opprfReceiver_2(key, context);
     auto newID = oprfSender(r1, context);
     auto _a = pa_share(pa.features, context, map);
-    auto data_pa_join = mergeMatrix(newID, _a, r2);
+    auto data_pa_join = mergeMatrix(newID, _a, r2, context);
 
-    auto [pa_data, p] = shuffle_receiver(context);
-    // permuteMatrix(data_pa_join, p);
-    matrixTransform(pa_data, data_pa_join);
-    shuffle_sender(pa_data, context);
+    if (context.use_ture_shuflle) {
+        auto [pa_data, p] = shuffle_receiver(context);
+        permuteMatrix(data_pa_join, p);
+        matrixTransform(pa_data, data_pa_join);
+        shuffle_sender(pa_data, context);
+    } else {
+        const auto c1 = std::chrono::system_clock::now();
+        Matrix pa_data(context.fill_bins, context.pa_features + context.pb_features + 1);
+        std::vector<block> mask(context.fill_bins);
+        prng.get(mask.data(), context.fill_bins);
+
+        // fake shuffle_receiver
+        Matrix outputs(context.fill_bins, context.pb_features + context.pa_features + 1);
+        auto p = generateRandomPermutation(context.fill_bins, context.seedJ);
+        prng.get(mask.data(), context.fill_bins);
+        prng.get(outputs.data(), outputs.size());
+        outputs -= khprf(mask, context);
+        permuteMatrix(pa_data, p);
+        pa_data += outputs;
+        const auto c2 = std::chrono::system_clock::now();
+        // fake shuffle_sender
+        pa_data += khprf(mask, context);
+        pa_data.setZero();
+        pa_data -= khprf(mask, context);
+        const auto c3 = std::chrono::system_clock::now();
+        context.timings.shuffle1st =
+            std::chrono::duration_cast<std::chrono::milliseconds>(c2 - c1).count();
+        context.timings.shuffle2nd =
+            std::chrono::duration_cast<std::chrono::milliseconds>(c3 - c2).count();
+    }
+
     const auto end_time = std::chrono::system_clock::now();
     const duration_millis total_time = end_time - start_time;
     context.timings.total = total_time.count();

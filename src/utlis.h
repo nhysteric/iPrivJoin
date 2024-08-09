@@ -18,7 +18,7 @@ std::map<uint64_t, std::pair<uint64_t, uint64_t>> CuckooHash(
     const std::vector<uint64_t> &ids, PsiAnalyticsContext &context);
 std::map<uint64_t, std::vector<std::pair<uint64_t, uint64_t>>> SimpleHash(
     const std::vector<uint64_t> &ids, PsiAnalyticsContext &context);
-Matrix mergeMatrix(const std::vector<block> ids, const Matrix &a, const Matrix &b);
+Matrix mergeMatrix(const std::vector<block> ids, const Matrix &a, const Matrix &b,PsiAnalyticsContext &context);
 std::vector<block> flatten(const std::vector<std::vector<block>> &vec);
 std::vector<std::vector<block>> unflatten(std::vector<block> &span, size_t inner_size);
 std::vector<block> minus(const std::vector<block> &a, const oc::span<block> &b);

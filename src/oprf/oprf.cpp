@@ -18,7 +18,7 @@ std::vector<block> oprfSender(const std::vector<block> &inputs, PsiAnalyticsCont
 
     oc::PRNG prng(block(0, 0));
     volePSI::RsOprfSender sender;
-    auto p = sender.send(context.bins, prng, chl, 1);
+    auto p = sender.send(context.bins, prng, chl, context.threads);
     coproto::sync_wait(p);
     std::vector<oc::block> result(context.bins);
     sender.eval(inputs, result);
@@ -47,7 +47,7 @@ std::vector<block> oprfReceiver(const std::vector<block> &inputs, PsiAnalyticsCo
 
     oc::PRNG prng(oc::block(0, 0));
     volePSI::RsOprfReceiver receiver;
-    auto p0 = receiver.receive(inputs, result, prng, chl, 1);
+    auto p0 = receiver.receive(inputs, result, prng, chl, context.threads);
     coproto::sync_wait(p0);
     coproto::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();

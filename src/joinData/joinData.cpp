@@ -10,15 +10,19 @@
 joinData::joinData(const PsiAnalyticsContext &context)
 {
     auto &configs = context.role == PA ? context.pa_config : context.pb_config;
-    volePSI::PRNG prng({ 526, 108 });
+    volePSI::PRNG prng({ 5260, 1080 });
     switch (context.role) {
     case PA:
         features = Matrix(context.pa_elems, context.pa_features);
         prng.get(features.data(), context.pa_elems * context.pa_features);
+        ids = std::vector<uint64_t>(context.pa_elems);
+        prng.get(ids.data(), context.pa_elems);
         break;
     case PB:
         features = Matrix(context.pb_elems, context.pb_features);
         prng.get(features.data(), context.pb_elems * context.pb_features);
+        ids = std::vector<uint64_t>(context.pb_elems);
+        prng.get(ids.data(), context.pb_elems);
         break;
     }
     if (!context.is_test) {
