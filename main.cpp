@@ -65,7 +65,7 @@ int main(int argc, char **argv)
     //     server_run(context);
     // }
     // 不知道为什么不能正常退出
-    std::terminate();
+    // std::terminate();
     return 0;
     // osuCrypto::ExConvCode ecc;
     // ecc.config(1);
