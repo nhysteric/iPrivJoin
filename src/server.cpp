@@ -8,6 +8,7 @@
 #include <cryptoTools/Common/MatrixView.h>
 #include <cryptoTools/Crypto/PRNG.h>
 #include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <libOTe/Tools/Coproto.h>
 #include <vector>
@@ -42,14 +43,27 @@ void pb_map(
 
 oc::Matrix<block> pb_share(PsiAnalyticsContext &context)
 {
+    const auto start_time = std::chrono::system_clock::now();
     coproto::Socket chl = coproto::asioConnect(context.address, true);
     oc::Matrix<block> outputs(context.bins, context.pa_features);
-    auto p = chl.recv(outputs);
-    coproto::sync_wait(p);
+    const uint64_t maxChunkSize = std::numeric_limits<std::uint32_t>::max() / 16;
+    uint64_t offset = 0;
+    uint64_t length = outputs.size();
+    while (length > 0) {
+        uint64_t chunkSize = std::min(length, maxChunkSize);
+        oc::span<block> outputsSpan(outputs.data() + offset, chunkSize);
+        auto p = chl.recv(outputsSpan);
+        coproto::sync_wait(p);
+        offset += chunkSize;
+        length -= chunkSize;
+    }
     coproto::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
     context.totalSend += chl.bytesSent();
     chl.close();
+    const auto end_time = std::chrono::system_clock::now();
+    const duration_millis total_time = end_time - start_time;
+    context.timings.share = total_time.count();
     return outputs;
 }
 
@@ -64,7 +78,7 @@ void server_run(PsiAnalyticsContext &context)
     context.timings.init = init_time.count();
     oc::PRNG prng(block(rand(), rand()));
     auto map = SimpleHash(pb.ids, context);
-
+    std::cout << "finish simple hash\n";
     std::vector<block> key(context.bins * context.max_in_bin);
     std::vector<block> r1(context.bins * context.max_in_bin);
     std::vector<block> r1_(context.bins);
@@ -101,7 +115,7 @@ void server_run(PsiAnalyticsContext &context)
         // fake shuffle_sender
         const auto c1 = std::chrono::system_clock::now();
         std::vector<block> mask(context.fill_bins);
-        prng.get(mask.data(), context.fill_bins);
+        // prng.get(mask.data(), context.fill_bins);
         pb_data += khprf(mask, context);
         pb_data.setZero();
         pb_data -= khprf(mask, context);
@@ -110,8 +124,8 @@ void server_run(PsiAnalyticsContext &context)
         // fake shuffle_receiver
         Matrix outputs(context.fill_bins, context.pb_features + context.pa_features + 1);
         auto p = generateRandomPermutation(context.fill_bins, context.seedJ);
-        prng.get(mask.data(), context.fill_bins);
-        prng.get(outputs.data(), outputs.size());
+        // prng.get(mask.data(), context.fill_bins);
+        // prng.get(outputs.data(), outputs.size());
         outputs -= khprf(mask, context);
         permuteMatrix(pb_data, p);
         pb_data += outputs;

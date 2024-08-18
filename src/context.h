@@ -76,6 +76,7 @@ struct PsiAnalyticsContext {
         double opprf1st;
         double opprf2nd;
         double oprf;
+        double share;
         double total;
         double shuffle1st;
         double shuffle2nd;
@@ -131,6 +132,7 @@ struct PsiAnalyticsContext {
         out << "Time for OPPRF1st: " << timings.opprf1st << " ms\n";
         out << "Time for OPPRF2nd: " << timings.opprf2nd << " ms\n";
         out << "Time for OPRF: " << timings.oprf << " ms\n";
+        out << "Time for share: " << timings.share << " ms\n";
         out << "Time for shuffle1st: " << timings.shuffle1st << " ms\n";
         out << "Time for shuffle2nd: " << timings.shuffle2nd << " ms\n";
         out << "Time for khprf: " << timings.khprf << " ms\n";

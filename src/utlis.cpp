@@ -35,6 +35,8 @@ uint64_t nextPowerOf2(uint64_t n)
         return n;
     }
 
+    if (n >= (1ULL << 63)) return 0;
+
     n--;
     n |= n >> 1;
     n |= n >> 2;
@@ -159,13 +161,16 @@ std::map<uint64_t, std::pair<uint64_t, uint64_t>> CuckooHash(
     const auto start_time = std::chrono::system_clock::now();
 
     kuku::KukuTable table(
-        context.bins, 0, context.funcs, kuku::make_random_item(), 10, kuku::make_item(0, 0));
-    std::for_each( ids.begin(), ids.end(), [&table](const uint64_t &v) {
+        context.bins, 0, context.funcs, { 0, 0 }, 1000, kuku::make_item(0, 0));
+    std::for_each(ids.begin(), ids.end(), [&table](const uint64_t &v) {
         if (!table.insert(kuku::make_item(v, 0))) {
+            std::cout << "fill rate: " << table.fill_rate() << std::endl;
+            std::cout << "failed item: " << v << std::endl;
             std::cout << "failed in kuku table" << std::endl;
             throw "failed in kuku table";
         }
     });
+    std::cout<<"kuku hash success with fill rate: "<<table.fill_rate()<<std::endl;
     std::map<uint64_t, std::pair<uint64_t, uint64_t>> loc_id_map;
     for (size_t i = 0; i < ids.size(); i++) {
         kuku::QueryResult res = table.query(kuku::make_item(ids[i], 0));

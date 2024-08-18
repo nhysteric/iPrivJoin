@@ -1,8 +1,8 @@
-bins = 1363148
-funcs = 8
+bins = 10066330
+funcs = 2
 address = "localhost:10051"
 
-pa_elems = 1048576
+pa_elems = 4194304
 pa_features = 100
 pb_elems = 1024
 pb_features = 1

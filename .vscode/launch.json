@@ -7,7 +7,7 @@
             "request": "launch",
             "program": "build/iPrivJoin",
             "args": [
-                "Bank",
+                "config",
             ],
             "cwd": "${workspaceFolder}",
         },
