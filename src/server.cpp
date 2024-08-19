@@ -82,9 +82,10 @@ void server_run(PsiAnalyticsContext &context)
     std::vector<block> key(context.bins * context.max_in_bin);
     std::vector<block> r1(context.bins * context.max_in_bin);
     std::vector<block> r1_(context.bins);
-    oc::Matrix<block> r2(context.bins * context.max_in_bin, context.pb_features);
+
+
     prng.get(key.data(), context.bins * context.max_in_bin);
-    prng.get(r2.data(), context.bins * context.max_in_bin * context.pb_features);
+
     oc::Matrix<block> _b(context.bins, context.pb_features);
 
     for (size_t local = 0; local < context.bins; local++) {
@@ -100,12 +101,23 @@ void server_run(PsiAnalyticsContext &context)
             r1.begin() + (local + 1) * context.max_in_bin,
             b);
     }
-    pb_map(map, pb.features, _b, key, r2, context);
-    opprfSender_1(key, r1, context);
-    opprfSender_2(key, r2, context);
+    {
+        oc::Matrix<block> r2(context.bins * context.max_in_bin, context.pb_features);
+        pb_map(map, pb.features, _b, key, r2, context);
+        prng.get(r2.data(), context.bins * context.max_in_bin * context.pb_features);
+        opprfSender_1(key, r1, context);
+
+        opprfSender_2(key, r2, context);
+    }
+    std::vector<block>().swap(key);
+    std::vector<block>().swap(r1);
     auto newID = oprfReceiver(r1_, context);
-    auto _a = pb_share(context);
-    auto pb_data = mergeMatrix(newID, _a, _b, context);
+    std::vector<block>().swap(r1_);
+    Matrix pb_data;
+    {
+        auto _a = pb_share(context);
+        pb_data = mergeMatrix(newID, _a, _b, context);
+    }
     if (context.use_ture_shuflle) {
         shuffle_sender(pb_data, context);
         auto [pa_data, p] = shuffle_receiver(context);

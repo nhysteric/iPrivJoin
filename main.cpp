@@ -7,6 +7,22 @@
 #include "lpn.h"
 #include "server.h"
 
+size_t getMemoryUsage()
+{
+    std::ifstream proc("/proc/self/status");
+    std::string line;
+    while (std::getline(proc, line)) {
+        if (line.rfind("VmHWM:", 0) == 0) {
+            std::istringstream iss(line);
+            std::string tmp;
+            size_t memory;
+            iss >> tmp >> memory;
+            return memory; // in KB
+        }
+    }
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     // std::vector<block> r(8);
@@ -20,8 +36,8 @@ int main(int argc, char **argv)
     std::string task_name = argv[1];
     std::string config_file = "test/config/" + task_name + ".toml";
     std::cout << config_file << std::endl;
-    std::string output_filePA = "test/"  + task_name + "_PA.txt";
-    std::string output_filePB = "test/"  + task_name + "_PB.txt";
+    std::string output_filePA = "test/" + task_name + "_PA.txt";
+    std::string output_filePB = "test/" + task_name + "_PB.txt";
     PsiAnalyticsContext contextPA(PA, config_file, "PA.csv", output_filePA);
     PsiAnalyticsContext contextPB(PB, config_file, "PB.csv", output_filePB);
     auto futurePA = std::async(client_run, std::ref(contextPA));
@@ -66,6 +82,7 @@ int main(int argc, char **argv)
     // }
     // 不知道为什么不能正常退出
     // std::terminate();
+    std::cout << "Peak memory usage: " << getMemoryUsage() << " KB\n";
     return 0;
     // osuCrypto::ExConvCode ecc;
     // ecc.config(1);
