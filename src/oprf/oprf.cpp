@@ -18,10 +18,20 @@ std::vector<block> oprfSender(const std::vector<block> &inputs, PsiAnalyticsCont
 
     oc::PRNG prng(block(0, 0));
     volePSI::RsOprfSender sender;
-    auto p = sender.send(context.bins, prng, chl, context.threads);
-    coproto::sync_wait(p);
+    const uint64_t maxChunkSize = std::numeric_limits<uint32_t>::max() / 16;
+    uint64_t offset = 0;
+    uint64_t length = context.bins;
     std::vector<oc::block> result(context.bins);
-    sender.eval(inputs, result);
+    while (length > 0) {
+        uint64_t chunkSize = std::min(length, maxChunkSize);
+        auto p = sender.send(chunkSize, prng, chl, context.threads);
+        coproto::sync_wait(p);
+        osuCrypto::span<const block> inputSpan(inputs.data() + offset, chunkSize);
+        osuCrypto::span<block> resultSpan(result.data() + offset, chunkSize);
+        sender.eval(inputSpan, resultSpan);
+        offset += chunkSize;
+        length -= chunkSize;
+    }
     coproto::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
     context.totalSend += chl.bytesSent();
@@ -47,8 +57,18 @@ std::vector<block> oprfReceiver(const std::vector<block> &inputs, PsiAnalyticsCo
 
     oc::PRNG prng(oc::block(0, 0));
     volePSI::RsOprfReceiver receiver;
-    auto p0 = receiver.receive(inputs, result, prng, chl, context.threads);
-    coproto::sync_wait(p0);
+    uint64_t offset = 0;
+    uint64_t length = context.bins;
+    const uint64_t maxChunkSize = std::numeric_limits<uint32_t>::max() / 16;
+    while (length > 0) {
+        uint64_t chunkSize = std::min(length, maxChunkSize);
+        osuCrypto::span<const block> inputSpan(inputs.data() + offset, chunkSize);
+        osuCrypto::span<block> resultSpan(result.data() + offset, chunkSize);
+        auto p0 = receiver.receive(inputSpan, resultSpan, prng, chl, context.threads);
+        coproto::sync_wait(p0);
+        offset += chunkSize;
+        length -= chunkSize;
+    }
     coproto::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
     context.totalSend += chl.bytesSent();

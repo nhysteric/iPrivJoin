@@ -35,7 +35,8 @@ uint64_t nextPowerOf2(uint64_t n)
         return n;
     }
 
-    if (n >= (1ULL << 63)) return 0;
+    if (n >= (1ULL << 63))
+        return 0;
 
     n--;
     n |= n >> 1;
@@ -116,52 +117,12 @@ void permuteMatrix(Matrix &a, const std::vector<size_t> &permute)
     a = temp;
 }
 
-void send_vector(std::vector<uint64_t> &data, PsiAnalyticsContext &context)
-{
-    const auto wait_start_time = std::chrono::system_clock::now();
-
-    auto socket = osuCrypto::cp::asioConnect(context.address, false);
-
-    const auto wait_end_time = std::chrono::system_clock::now();
-
-    const duration_millis wait_duration_time = wait_end_time - wait_start_time;
-    context.timings.wait += wait_duration_time.count();
-    socket.send(data);
-
-    coproto::sync_wait(socket.flush());
-    socket.close();
-    context.totalReceive += socket.bytesReceived();
-    context.totalSend += socket.bytesSent();
-}
-
-std::vector<uint8_t> recv_vector(PsiAnalyticsContext &context, size_t size)
-{
-    const auto wait_start_time = std::chrono::system_clock::now();
-
-    auto socket = osuCrypto::cp::asioConnect(context.address, true);
-
-    const auto wait_end_time = std::chrono::system_clock::now();
-
-    const duration_millis wait_duration_time = wait_end_time - wait_start_time;
-    context.timings.wait += wait_duration_time.count();
-
-    std::vector<uint8_t> data(size);
-    socket.recv(data);
-
-    coproto::sync_wait(socket.flush());
-    socket.close();
-    context.totalReceive += socket.bytesReceived();
-    context.totalSend += socket.bytesSent();
-    return data;
-}
-
 std::map<uint64_t, std::pair<uint64_t, uint64_t>> CuckooHash(
     const std::vector<uint64_t> &ids, PsiAnalyticsContext &context)
 {
     const auto start_time = std::chrono::system_clock::now();
 
-    kuku::KukuTable table(
-        context.bins, 0, context.funcs, { 0, 0 }, 1000, kuku::make_item(0, 0));
+    kuku::KukuTable table(context.bins, 0, context.funcs, { 0, 0 }, 1000, kuku::make_item(0, 0));
     std::for_each(ids.begin(), ids.end(), [&table](const uint64_t &v) {
         if (!table.insert(kuku::make_item(v, 0))) {
             std::cout << "fill rate: " << table.fill_rate() << std::endl;
@@ -170,7 +131,7 @@ std::map<uint64_t, std::pair<uint64_t, uint64_t>> CuckooHash(
             throw "failed in kuku table";
         }
     });
-    std::cout<<"kuku hash success with fill rate: "<<table.fill_rate()<<std::endl;
+    std::cout << "kuku hash success with fill rate: " << table.fill_rate() << std::endl;
     std::map<uint64_t, std::pair<uint64_t, uint64_t>> loc_id_map;
     for (size_t i = 0; i < ids.size(); i++) {
         kuku::QueryResult res = table.query(kuku::make_item(ids[i], 0));
@@ -290,4 +251,44 @@ void PrintInfo(const PsiAnalyticsContext &context)
     //           << "ms\n";
     // std::cout << "Total receive: " << context.totalReceive * 1.0 / 1048576 << "MB\n";
     // std::cout << "Total send: " << context.totalSend * 1.0 / 1048576 << "MB\n";
+}
+
+void MatrixRecv(Matrix &result, PsiAnalyticsContext &context)
+{
+    coproto::Socket chl = coproto::asioConnect(context.address, true);
+    const uint64_t maxChunkSize = std::numeric_limits<uint32_t>::max() / 16;
+    uint64_t offset = 0;
+    uint64_t length = result.size();
+    while (length > 0) {
+        uint64_t chunkSize = std::min(length, maxChunkSize);
+        oc::span<block> resultSpan(result.data() + offset, chunkSize);
+        auto p = chl.recv(resultSpan);
+        coproto::sync_wait(p);
+        offset += chunkSize;
+        length -= chunkSize;
+    }
+    coproto::sync_wait(chl.flush());
+    context.totalReceive += chl.bytesReceived();
+    context.totalSend += chl.bytesSent();
+    chl.close();
+}
+
+void MatrixSend(const Matrix &value, PsiAnalyticsContext &context)
+{
+    coproto::Socket chl = coproto::asioConnect(context.address, false);
+    const uint64_t maxChunkSize = std::numeric_limits<uint32_t>::max() / 16;
+    uint64_t offset = 0;
+    uint64_t length = value.size();
+    while (length > 0) {
+        uint64_t chunkSize = std::min(length, maxChunkSize);
+        osuCrypto::span<block> shareSpan(value.data() + offset, chunkSize);
+        auto p = chl.send(shareSpan);
+        coproto::sync_wait(p);
+        offset += chunkSize;
+        length -= chunkSize;
+    }
+    coproto::sync_wait(chl.flush());
+    context.totalReceive += chl.bytesReceived();
+    context.totalSend += chl.bytesSent();
+    chl.close();
 }

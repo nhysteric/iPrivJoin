@@ -44,23 +44,9 @@ void pb_map(
 oc::Matrix<block> pb_share(PsiAnalyticsContext &context)
 {
     const auto start_time = std::chrono::system_clock::now();
-    coproto::Socket chl = coproto::asioConnect(context.address, true);
+
     oc::Matrix<block> outputs(context.bins, context.pa_features);
-    const uint64_t maxChunkSize = std::numeric_limits<std::uint32_t>::max() / 16;
-    uint64_t offset = 0;
-    uint64_t length = outputs.size();
-    while (length > 0) {
-        uint64_t chunkSize = std::min(length, maxChunkSize);
-        oc::span<block> outputsSpan(outputs.data() + offset, chunkSize);
-        auto p = chl.recv(outputsSpan);
-        coproto::sync_wait(p);
-        offset += chunkSize;
-        length -= chunkSize;
-    }
-    coproto::sync_wait(chl.flush());
-    context.totalReceive += chl.bytesReceived();
-    context.totalSend += chl.bytesSent();
-    chl.close();
+    MatrixRecv(outputs, context);
     const auto end_time = std::chrono::system_clock::now();
     const duration_millis total_time = end_time - start_time;
     context.timings.share = total_time.count();
@@ -82,7 +68,6 @@ void server_run(PsiAnalyticsContext &context)
     std::vector<block> key(context.bins * context.max_in_bin);
     std::vector<block> r1(context.bins * context.max_in_bin);
     std::vector<block> r1_(context.bins);
-
 
     prng.get(key.data(), context.bins * context.max_in_bin);
 
@@ -126,21 +111,28 @@ void server_run(PsiAnalyticsContext &context)
     } else {
         // fake shuffle_sender
         const auto c1 = std::chrono::system_clock::now();
+
         std::vector<block> mask(context.fill_bins);
         // prng.get(mask.data(), context.fill_bins);
-        pb_data += khprf(mask, context);
+        Matrix expand = khprf(mask, context);
+        pb_data += expand;
+        MatrixSend(pb_data, context);
         pb_data.setZero();
-        pb_data -= khprf(mask, context);
+        pb_data -= expand;
         const auto c2 = std::chrono::system_clock::now();
 
-        // fake shuffle_receiver
-        Matrix outputs(context.fill_bins, context.pb_features + context.pa_features + 1);
         auto p = generateRandomPermutation(context.fill_bins, context.seedJ);
-        // prng.get(mask.data(), context.fill_bins);
-        // prng.get(outputs.data(), outputs.size());
-        outputs -= khprf(mask, context);
+        Matrix expand2 = khprf(mask, context);
+        {
+            Matrix outputs(context.fill_bins, context.pb_features + context.pa_features + 1);
+            // prng.get(mask.data(), context.fill_bins);
+            // prng.get(outputs.data(), outputs.size());
+            MatrixRecv(outputs, context);
+            expand2 += outputs;
+        }
+        permuteMatrix(expand2, p);
         permuteMatrix(pb_data, p);
-        pb_data += outputs;
+        pb_data += expand2;
         const auto c3 = std::chrono::system_clock::now();
         context.timings.shuffle1st =
             std::chrono::duration_cast<std::chrono::milliseconds>(c2 - c1).count();
