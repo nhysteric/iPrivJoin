@@ -259,7 +259,11 @@ void MatrixRecv(Matrix &result, PsiAnalyticsContext &context)
     const uint64_t maxChunkSize = std::numeric_limits<uint32_t>::max() / 16;
     uint64_t offset = 0;
     uint64_t length = result.size();
+    const auto wait_start_time = std::chrono::system_clock::now();
     coproto::Socket chl = coproto::asioConnect(context.address, true);
+    const auto wait_end_time = std::chrono::system_clock::now();
+    const duration_millis wait_time = wait_end_time - wait_start_time;
+    context.timings.wait += wait_time.count();
     while (length > 0) {
         uint64_t chunkSize = std::min(length, maxChunkSize);
         oc::span<block> resultSpan(result.data() + offset, chunkSize);
@@ -279,7 +283,11 @@ void MatrixSend(const Matrix &value, PsiAnalyticsContext &context)
     const uint64_t maxChunkSize = std::numeric_limits<uint32_t>::max() / 16;
     uint64_t offset = 0;
     uint64_t length = value.size();
+    const auto wait_start_time = std::chrono::system_clock::now();
     coproto::Socket chl = coproto::asioConnect(context.address, false);
+    const auto wait_end_time = std::chrono::system_clock::now();
+    const duration_millis wait_time = wait_end_time - wait_start_time;
+    context.timings.wait += wait_time.count();
     while (length > 0) {
         uint64_t chunkSize = std::min(length, maxChunkSize);
         osuCrypto::span<block> shareSpan(value.data() + offset, chunkSize);

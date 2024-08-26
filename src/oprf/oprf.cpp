@@ -11,7 +11,7 @@ std::vector<block> oprfSender(const std::vector<block> &inputs, PsiAnalyticsCont
     const auto start_time = std::chrono::system_clock::now();
 
     const auto wait_start_time = std::chrono::system_clock::now();
-
+    coproto::Socket chl = coproto::asioConnect(context.address, false);
     const auto wait_end_time = std::chrono::system_clock::now();
     const duration_millis wait_time = wait_end_time - wait_start_time;
     context.timings.wait += wait_time.count();
@@ -22,7 +22,6 @@ std::vector<block> oprfSender(const std::vector<block> &inputs, PsiAnalyticsCont
     uint64_t offset = 0;
     uint64_t length = context.bins;
     std::vector<oc::block> result(context.bins);
-    coproto::Socket chl = coproto::asioConnect(context.address, true);
     while (length > 0) {
         uint64_t chunkSize = std::min(length, maxChunkSize);
         auto p = sender.send(chunkSize, prng, chl, context.threads);
@@ -49,7 +48,7 @@ std::vector<block> oprfReceiver(const std::vector<block> &inputs, PsiAnalyticsCo
     const auto start_time = std::chrono::system_clock::now();
 
     const auto wait_start_time = std::chrono::system_clock::now();
-
+    coproto::Socket chl = coproto::asioConnect(context.address, true);
     const auto wait_end_time = std::chrono::system_clock::now();
     const duration_millis wait_time = wait_end_time - wait_start_time;
     context.timings.wait += wait_time.count();
@@ -60,7 +59,6 @@ std::vector<block> oprfReceiver(const std::vector<block> &inputs, PsiAnalyticsCo
     volePSI::RsOprfReceiver receiver;
     uint64_t offset = 0;
     uint64_t length = context.bins;
-    coproto::Socket chl = coproto::asioConnect(context.address, false);
     const uint64_t maxChunkSize = std::numeric_limits<uint32_t>::max() / 16;
     while (length > 0) {
         uint64_t chunkSize = std::min(length, maxChunkSize);
