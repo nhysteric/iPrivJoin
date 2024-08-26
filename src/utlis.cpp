@@ -166,7 +166,8 @@ std::map<uint64_t, std::vector<std::pair<uint64_t, uint64_t>>> SimpleHash(
             if (loc_index_id_map.find(loc) != loc_index_id_map.end()) {
                 loc_index_id_map.at(loc).push_back(std::make_pair(i, ids[i]));
                 if (loc_index_id_map.at(loc).size() > context.max_in_bin) {
-                    std::cout << "max_in_bin" << std::endl;
+                    std::cout << "max_in_bin with size" << loc_index_id_map.at(loc).size()
+                              << std::endl;
                     throw "max_in_bin";
                 }
             } else {
@@ -258,19 +259,19 @@ void MatrixRecv(Matrix &result, PsiAnalyticsContext &context)
     const uint64_t maxChunkSize = std::numeric_limits<uint32_t>::max() / 16;
     uint64_t offset = 0;
     uint64_t length = result.size();
+    coproto::Socket chl = coproto::asioConnect(context.address, true);
     while (length > 0) {
-        coproto::Socket chl = coproto::asioConnect(context.address, true);
         uint64_t chunkSize = std::min(length, maxChunkSize);
         oc::span<block> resultSpan(result.data() + offset, chunkSize);
         auto p = chl.recv(resultSpan);
         coproto::sync_wait(p);
-        coproto::sync_wait(chl.flush());
-        context.totalReceive += chl.bytesReceived();
-        context.totalSend += chl.bytesSent();
-        chl.close();
         offset += chunkSize;
         length -= chunkSize;
     }
+    coproto::sync_wait(chl.flush());
+    context.totalReceive += chl.bytesReceived();
+    context.totalSend += chl.bytesSent();
+    chl.close();
 }
 
 void MatrixSend(const Matrix &value, PsiAnalyticsContext &context)
@@ -278,17 +279,17 @@ void MatrixSend(const Matrix &value, PsiAnalyticsContext &context)
     const uint64_t maxChunkSize = std::numeric_limits<uint32_t>::max() / 16;
     uint64_t offset = 0;
     uint64_t length = value.size();
+    coproto::Socket chl = coproto::asioConnect(context.address, false);
     while (length > 0) {
-        coproto::Socket chl = coproto::asioConnect(context.address, false);
         uint64_t chunkSize = std::min(length, maxChunkSize);
         osuCrypto::span<block> shareSpan(value.data() + offset, chunkSize);
         auto p = chl.send(shareSpan);
         coproto::sync_wait(p);
-        coproto::sync_wait(chl.flush());
-        context.totalReceive += chl.bytesReceived();
-        context.totalSend += chl.bytesSent();
-        chl.close();
         offset += chunkSize;
         length -= chunkSize;
     }
+    coproto::sync_wait(chl.flush());
+    context.totalReceive += chl.bytesReceived();
+    context.totalSend += chl.bytesSent();
+    chl.close();
 }
