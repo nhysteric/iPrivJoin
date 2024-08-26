@@ -255,40 +255,40 @@ void PrintInfo(const PsiAnalyticsContext &context)
 
 void MatrixRecv(Matrix &result, PsiAnalyticsContext &context)
 {
-    coproto::Socket chl = coproto::asioConnect(context.address, true);
     const uint64_t maxChunkSize = std::numeric_limits<uint32_t>::max() / 16;
     uint64_t offset = 0;
     uint64_t length = result.size();
     while (length > 0) {
+        coproto::Socket chl = coproto::asioConnect(context.address, true);
         uint64_t chunkSize = std::min(length, maxChunkSize);
         oc::span<block> resultSpan(result.data() + offset, chunkSize);
         auto p = chl.recv(resultSpan);
         coproto::sync_wait(p);
+        coproto::sync_wait(chl.flush());
+        context.totalReceive += chl.bytesReceived();
+        context.totalSend += chl.bytesSent();
+        chl.close();
         offset += chunkSize;
         length -= chunkSize;
     }
-    coproto::sync_wait(chl.flush());
-    context.totalReceive += chl.bytesReceived();
-    context.totalSend += chl.bytesSent();
-    chl.close();
 }
 
 void MatrixSend(const Matrix &value, PsiAnalyticsContext &context)
 {
-    coproto::Socket chl = coproto::asioConnect(context.address, false);
     const uint64_t maxChunkSize = std::numeric_limits<uint32_t>::max() / 16;
     uint64_t offset = 0;
     uint64_t length = value.size();
     while (length > 0) {
+        coproto::Socket chl = coproto::asioConnect(context.address, false);
         uint64_t chunkSize = std::min(length, maxChunkSize);
         osuCrypto::span<block> shareSpan(value.data() + offset, chunkSize);
         auto p = chl.send(shareSpan);
         coproto::sync_wait(p);
+        coproto::sync_wait(chl.flush());
+        context.totalReceive += chl.bytesReceived();
+        context.totalSend += chl.bytesSent();
+        chl.close();
         offset += chunkSize;
         length -= chunkSize;
     }
-    coproto::sync_wait(chl.flush());
-    context.totalReceive += chl.bytesReceived();
-    context.totalSend += chl.bytesSent();
-    chl.close();
 }

@@ -15,7 +15,7 @@ void opprfSender_1(
     const auto start_time = std::chrono::system_clock::now();
 
     const auto wait_start_time = std::chrono::system_clock::now();
-    coproto::Socket chl = coproto::asioConnect(context.address, true);
+
     const auto wait_end_time = std::chrono::system_clock::now();
     const duration_millis wait_time = wait_end_time - wait_start_time;
     context.timings.wait += wait_time.count();
@@ -26,6 +26,7 @@ void opprfSender_1(
     uint64_t offset = 0;
     uint64_t length = context.bins;
     while (length > 0) {
+        coproto::Socket chl = coproto::asioConnect(context.address, true);
         uint64_t binSize = std::min(length, maxBinSize);
         oc::span<const block> keyspan(key.data() + offset, binSize * context.max_in_bin);
         oc::span<block> valuespan(value.data() + offset, binSize * context.max_in_bin);
@@ -33,11 +34,11 @@ void opprfSender_1(
         coproto::sync_wait(p);
         offset += binSize * context.max_in_bin;
         length -= binSize;
+        coproto::sync_wait(chl.flush());
+        context.totalReceive += chl.bytesReceived();
+        context.totalSend += chl.bytesSent();
+        chl.close();
     }
-    coproto::sync_wait(chl.flush());
-    context.totalReceive += chl.bytesReceived();
-    context.totalSend += chl.bytesSent();
-    chl.close();
 
     const auto end_time = std::chrono::system_clock::now();
     const duration_millis opprf1_time = end_time - start_time;
@@ -49,7 +50,7 @@ std::vector<block> opprfReceiver_1(const std::vector<block> &key, PsiAnalyticsCo
     const auto start_time = std::chrono::system_clock::now();
 
     const auto wait_start_time = std::chrono::system_clock::now();
-    coproto::Socket chl = coproto::asioConnect(context.address, false);
+
     const auto wait_end_time = std::chrono::system_clock::now();
     const duration_millis wait_time = wait_end_time - wait_start_time;
     context.timings.wait += wait_time.count();
@@ -61,20 +62,20 @@ std::vector<block> opprfReceiver_1(const std::vector<block> &key, PsiAnalyticsCo
     uint64_t offset = 0;
     uint64_t length = context.bins;
     while (length > 0) {
+        coproto::Socket chl = coproto::asioConnect(context.address, false);
         uint64_t binSize = std::min(length, maxBinSize);
         oc::span<const block> keyspan(key.data() + offset, binSize);
         oc::span<block> outputspan(outputs.data() + offset, binSize);
         auto p = receiver.receive(
             binSize * context.max_in_bin, keyspan, outputspan, prng, context.threads, chl);
         coproto::sync_wait(p);
+        coproto::sync_wait(chl.flush());
+        context.totalReceive += chl.bytesReceived();
+        context.totalSend += chl.bytesSent();
+        chl.close();
         offset += binSize;
         length -= binSize;
     }
-    coproto::sync_wait(chl.flush());
-    context.totalReceive += chl.bytesReceived();
-    context.totalSend += chl.bytesSent();
-    chl.close();
-
     const auto end_time = std::chrono::system_clock::now();
     const duration_millis opprf1_time = end_time - start_time;
     context.timings.opprf1st = opprf1_time.count();
@@ -88,7 +89,7 @@ void opprfSender_2(
     const auto start_time = std::chrono::system_clock::now();
 
     const auto wait_start_time = std::chrono::system_clock::now();
-    coproto::Socket chl = coproto::asioConnect(context.address, true);
+
     const auto wait_end_time = std::chrono::system_clock::now();
     const duration_millis wait_time = wait_end_time - wait_start_time;
     context.timings.wait += wait_time.count();
@@ -99,18 +100,19 @@ void opprfSender_2(
     uint64_t offset = 0;
     uint64_t length = context.bins;
     while (length > 0) {
+        coproto::Socket chl = coproto::asioConnect(context.address, true);
         uint64_t binSize = std::min(length, maxBinSize);
         oc::span<const block> keyspan(key.data() + offset, binSize * context.max_in_bin);
         oc::span<block> valuespan(value.data() + offset, binSize * context.max_in_bin);
         auto p = sender.send(binSize, keyspan, valuespan, prng, context.threads, chl);
         coproto::sync_wait(p);
+        coproto::sync_wait(chl.flush());
+        context.totalReceive += chl.bytesReceived();
+        context.totalSend += chl.bytesSent();
+        chl.close();
         offset += binSize * context.max_in_bin;
         length -= binSize;
     }
-    coproto::sync_wait(chl.flush());
-    context.totalReceive += chl.bytesReceived();
-    context.totalSend += chl.bytesSent();
-    chl.close();
     const auto end_time = std::chrono::system_clock::now();
     const duration_millis opprf2_time = end_time - start_time;
     context.timings.opprf2nd = opprf2_time.count();
@@ -121,7 +123,7 @@ oc::Matrix<block> opprfReceiver_2(const std::vector<block> &key, PsiAnalyticsCon
     const auto start_time = std::chrono::system_clock::now();
 
     const auto wait_start_time = std::chrono::system_clock::now();
-    coproto::Socket chl = coproto::asioConnect(context.address, false);
+
     const auto wait_end_time = std::chrono::system_clock::now();
     const duration_millis wait_time = wait_end_time - wait_start_time;
     context.timings.wait += wait_time.count();
@@ -133,19 +135,21 @@ oc::Matrix<block> opprfReceiver_2(const std::vector<block> &key, PsiAnalyticsCon
     uint64_t offset = 0;
     uint64_t length = context.bins;
     while (length > 0) {
+        coproto::Socket chl = coproto::asioConnect(context.address, false);
         uint64_t binSize = std::min(length, maxBinSize);
         oc::span<const block> keyspan(key.data() + offset, binSize);
         oc::span<block> outputspan(outputs.data() + offset, binSize);
         auto p = receiver.receive(
             binSize * context.max_in_bin, keyspan, outputspan, prng, context.threads, chl);
         coproto::sync_wait(p);
+        coproto::sync_wait(chl.flush());
+        context.totalReceive += chl.bytesReceived();
+        context.totalSend += chl.bytesSent();
+        chl.close();
         offset += binSize;
         length -= binSize;
     }
-    coproto::sync_wait(chl.flush());
-    context.totalReceive += chl.bytesReceived();
-    context.totalSend += chl.bytesSent();
-    chl.close();
+
     const auto end_time = std::chrono::system_clock::now();
     const duration_millis opprf2_time = end_time - start_time;
     context.timings.opprf2nd = opprf2_time.count();
