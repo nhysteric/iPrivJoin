@@ -4,7 +4,6 @@
 #include <volePSI/RsOpprf.h>
 #include "client.h"
 #include "context.h"
-#include "lpn.h"
 #include "server.h"
 
 size_t getMemoryUsage()

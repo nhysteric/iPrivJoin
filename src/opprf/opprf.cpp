@@ -39,7 +39,7 @@ void opprfSender_1(
     coproto::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
     context.totalSend += chl.bytesSent();
-    chl.close();
+    osuCrypto::cp::sync_wait(chl.close());
     const auto end_time = std::chrono::system_clock::now();
     const duration_millis opprf1_time = end_time - start_time;
     context.timings.opprf1st = opprf1_time.count();
@@ -75,7 +75,7 @@ std::vector<block> opprfReceiver_1(const std::vector<block> &key, PsiAnalyticsCo
     coproto::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
     context.totalSend += chl.bytesSent();
-    chl.close();
+    osuCrypto::cp::sync_wait(chl.close());
     const auto end_time = std::chrono::system_clock::now();
     const duration_millis opprf1_time = end_time - start_time;
     context.timings.opprf1st = opprf1_time.count();
@@ -96,7 +96,8 @@ void opprfSender_2(
 
     volePSI::RsOpprfSender sender;
     oc::PRNG prng(block(0, 0));
-    const uint64_t maxBinSize = std::numeric_limits<std::uint32_t>::max() / 16 / context.max_in_bin;
+    const uint64_t maxBinSize =
+        std::numeric_limits<std::uint32_t>::max() / 32 / context.max_in_bin / context.pb_features;
     uint64_t offset = 0;
     uint64_t length = context.bins;
 
@@ -113,7 +114,7 @@ void opprfSender_2(
     coproto::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
     context.totalSend += chl.bytesSent();
-    chl.close();
+    osuCrypto::cp::sync_wait(chl.close());
     const auto end_time = std::chrono::system_clock::now();
     const duration_millis opprf2_time = end_time - start_time;
     context.timings.opprf2nd = opprf2_time.count();
@@ -132,11 +133,11 @@ oc::Matrix<block> opprfReceiver_2(const std::vector<block> &key, PsiAnalyticsCon
     volePSI::RsOpprfReceiver receiver;
     oc::PRNG prng(block(0, 0));
 
-    const uint64_t maxBinSize = std::numeric_limits<std::uint32_t>::max() / 16 / context.max_in_bin;
+    const uint64_t maxBinSize =
+        std::numeric_limits<std::uint32_t>::max() / 32 / context.max_in_bin / context.pb_features;
 
     uint64_t offset = 0;
     uint64_t length = context.bins;
-
     while (length > 0) {
         uint64_t binSize = std::min(length, maxBinSize);
         oc::span<const block> keyspan(key.data() + offset, binSize);
@@ -152,7 +153,7 @@ oc::Matrix<block> opprfReceiver_2(const std::vector<block> &key, PsiAnalyticsCon
     coproto::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
     context.totalSend += chl.bytesSent();
-    chl.close();
+    osuCrypto::cp::sync_wait(chl.close());
 
     const auto end_time = std::chrono::system_clock::now();
     const duration_millis opprf2_time = end_time - start_time;

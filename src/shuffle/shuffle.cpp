@@ -133,7 +133,7 @@ std::vector<block> mShuffleSender(
     osuCrypto::cp::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
     context.totalSend += chl.bytesSent();
-    chl.close();
+    osuCrypto::cp::sync_wait(chl.close());
     return b;
 }
 
@@ -169,7 +169,7 @@ std::vector<block> mShuffleReceiver(
     osuCrypto::cp::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
     context.totalSend += chl.bytesSent();
-    chl.close();
+    osuCrypto::cp::sync_wait(chl.close());
     xorVectorsWithPI(a_pi, xXORa, pi);
     return a_pi;
 }
@@ -266,7 +266,7 @@ std::pair<std::vector<block>, std::vector<uint64_t>> oShuffleReceiver(
     }
     context.totalReceive += chl.bytesReceived();
     context.totalSend += chl.bytesSent();
-    chl.close();
+    osuCrypto::cp::sync_wait(chl.close());
     return std::make_pair(std::move(temp), std::move(oshullfe.permutation));
 }
 
@@ -304,7 +304,7 @@ void oShuffleSender(std::vector<block> &inputs, PsiAnalyticsContext &context)
     }
     context.totalReceive += chl.bytesReceived();
     context.totalSend += chl.bytesSent();
-    chl.close();
+    osuCrypto::cp::sync_wait(chl.close());
 }
 
 void shuffle_sender(Matrix &inputs, PsiAnalyticsContext &context)
@@ -325,7 +325,7 @@ void shuffle_sender(Matrix &inputs, PsiAnalyticsContext &context)
     coproto::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
     context.totalSend += chl.bytesSent();
-    chl.close();
+    osuCrypto::cp::sync_wait(chl.close());
     inputs.setZero();
     inputs -= khprf(mask, context);
     const auto end_time = std::chrono::system_clock::now();
@@ -354,7 +354,7 @@ std::pair<Matrix, std::vector<uint64_t>> shuffle_receiver(PsiAnalyticsContext &c
     coproto::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
     context.totalSend += chl.bytesSent();
-    chl.close();
+    osuCrypto::cp::sync_wait(chl.close());
 
     // permuteMatrix(outputs, p);
     outputs -= khprf(mask, context);

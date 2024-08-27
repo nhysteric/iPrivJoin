@@ -275,7 +275,7 @@ void MatrixRecv(Matrix &result, PsiAnalyticsContext &context)
     coproto::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
     context.totalSend += chl.bytesSent();
-    chl.close();
+    osuCrypto::cp::sync_wait(chl.close());
 }
 
 void MatrixSend(const Matrix &value, PsiAnalyticsContext &context)
@@ -299,5 +299,5 @@ void MatrixSend(const Matrix &value, PsiAnalyticsContext &context)
     coproto::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
     context.totalSend += chl.bytesSent();
-    chl.close();
+    osuCrypto::cp::sync_wait(chl.close());
 }

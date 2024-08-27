@@ -36,7 +36,7 @@ std::vector<block> oprfSender(const std::vector<block> &inputs, PsiAnalyticsCont
     coproto::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
     context.totalSend += chl.bytesSent();
-    chl.close();
+    osuCrypto::cp::sync_wait(chl.close());
     const auto end_time = std::chrono::system_clock::now();
     const duration_millis oprf_time = end_time - start_time;
     context.timings.oprf = oprf_time.count();
@@ -73,7 +73,7 @@ std::vector<block> oprfReceiver(const std::vector<block> &inputs, PsiAnalyticsCo
     coproto::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
     context.totalSend += chl.bytesSent();
-    chl.close();
+    osuCrypto::cp::sync_wait(chl.close());
     const auto end_time = std::chrono::system_clock::now();
     const duration_millis oprf_time = end_time - start_time;
     context.timings.oprf = oprf_time.count();

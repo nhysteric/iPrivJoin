@@ -20,7 +20,7 @@ joinData::joinData(const PsiAnalyticsContext &context)
         break;
     case PB:
         features = Matrix(context.pb_elems, context.pb_features);
-        prng.get(features.data(), context.pb_elems * context.pb_features);
+        // prng.get(features.data(), context.pb_elems * context.pb_features);
         ids = std::vector<uint64_t>(context.pb_elems);
         prng.get(ids.data(), context.pb_elems);
         break;

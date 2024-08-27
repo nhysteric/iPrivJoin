@@ -123,7 +123,7 @@ void ggm_send(const GGMTree &g, const std::string &address, PsiAnalyticsContext 
     osuCrypto::cp::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
     context.totalSend += chl.bytesSent();
-    chl.close();
+    osuCrypto::cp::sync_wait(chl.close());
 }
 
 GGMTree ggm_recv(
@@ -145,7 +145,7 @@ GGMTree ggm_recv(
     osuCrypto::cp::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
     context.totalSend += chl.bytesSent();
-    chl.close();
+    osuCrypto::cp::sync_wait(chl.close());
     return (GGMTree(high, received, chosen_bits));
 }
 
