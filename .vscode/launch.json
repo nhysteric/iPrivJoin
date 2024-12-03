@@ -2,24 +2,15 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "pa",
+            "name": "test",
             "type": "lldb",
             "request": "launch",
             "program": "build/iPrivJoin",
             "args": [
-                "Bank",
+                "test",
+                "lan"
             ],
             "cwd": "${workspaceFolder}",
-        },
-        {
-            "name": "pb",
-            "type": "lldb",
-            "request": "launch",
-            "program": "build/iPrivJoin",
-            "args": [
-                "config",
-            ],
-            "cwd": "${workspaceFolder}",
-        },
+        }
     ]
 }

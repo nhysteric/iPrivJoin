@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <exception>
 #include <iostream>
 #include <kuku/common.h>
 #include <kuku/kuku.h>
@@ -122,7 +123,7 @@ std::map<uint64_t, std::pair<uint64_t, uint64_t>> CuckooHash(
 {
     const auto start_time = std::chrono::system_clock::now();
 
-    kuku::KukuTable table(context.bins, 0, context.funcs, { 0, 0 }, 1000, kuku::make_item(0, 0));
+    kuku::KukuTable table(context.bins, 0, context.funcs, { 0, 0 }, 90000, kuku::make_item(0, 0));
     std::for_each(ids.begin(), ids.end(), [&table](const uint64_t &v) {
         if (!table.insert(kuku::make_item(v, 0))) {
             std::cout << "fill rate: " << table.fill_rate() << std::endl;
@@ -148,28 +149,31 @@ std::map<uint64_t, std::vector<std::pair<uint64_t, uint64_t>>> SimpleHash(
     const std::vector<uint64_t> &ids, PsiAnalyticsContext &context)
 {
     const auto start_time = std::chrono::system_clock::now();
-
+    oc::PRNG prng(block(context.seedJ - 1));
     std::vector<kuku::LocFunc> funcs;
     for (size_t i = 0; i < context.funcs; i++) {
         funcs.emplace_back(context.bins, kuku::make_item(i, 0));
     }
+    // 分别代表：桶下标、id下标、id值
     std::map<uint64_t, std::vector<std::pair<uint64_t, uint64_t>>> loc_index_id_map;
 
     for (size_t i = 0; i < ids.size(); i++) {
         std::set<uint64_t> sets = std::set<uint64_t>();
         for (auto f : funcs) {
             uint64_t loc = f(kuku::make_item(ids[i], 0));
-            // 偶尔会出现hash到一个桶里的情况，这回导致opprf失效，这里直接跳过
+            //! 偶尔会出现hash到一个桶里的情况，这回导致opprf失效，这里直接跳过
+            // 现在不能直接跳过，转而生成一个随机元素放入桶中，并标注下标为-1
             if (!sets.insert(loc).second) {
+                loc_index_id_map.at(loc).push_back(std::make_pair(-1, prng.get()));
                 continue;
             }
             if (loc_index_id_map.find(loc) != loc_index_id_map.end()) {
                 loc_index_id_map.at(loc).push_back(std::make_pair(i, ids[i]));
-                if (loc_index_id_map.at(loc).size() > context.max_in_bin) {
-                    std::cout << "max_in_bin with size" << loc_index_id_map.at(loc).size()
-                              << std::endl;
-                    throw "max_in_bin";
-                }
+                // if (loc_index_id_map.at(loc).size() > context.max_in_bin) {
+                //     std::cout << "max_in_bin with size" << loc_index_id_map.at(loc).size()
+                //               << std::endl;
+                //     throw "max_in_bin";
+                // }
             } else {
                 std::vector<std::pair<uint64_t, uint64_t>> temp;
                 temp.push_back(std::make_pair(i, ids[i]));
@@ -260,7 +264,17 @@ void MatrixRecv(Matrix &result, PsiAnalyticsContext &context)
     uint64_t offset = 0;
     uint64_t length = result.size();
     const auto wait_start_time = std::chrono::system_clock::now();
-    coproto::Socket chl = coproto::asioConnect(context.address, true);
+    coproto::Socket chl;
+    while (true) {
+        try {
+            chl = coproto::asioConnect(context.address, true);
+            std::cout << "connect success\n";
+            break;
+        } catch (std::exception e) {
+            std::cout << "connect failed, retrying\n";
+        }
+    }
+
     const auto wait_end_time = std::chrono::system_clock::now();
     const duration_millis wait_time = wait_end_time - wait_start_time;
     context.timings.wait += wait_time.count();

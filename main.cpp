@@ -34,10 +34,11 @@ int main(int argc, char **argv)
     // }
     // size_t role = std::atoi(argv[1]);
     std::string task_name = argv[1];
+    std::string env = argv[2];
     std::string config_file = "test/config/" + task_name + ".toml";
     std::cout << config_file << std::endl;
-    std::string output_filePA = "test/" + task_name + "_PA.txt";
-    std::string output_filePB = "test/" + task_name + "_PB.txt";
+    std::string output_filePA = "test/" + env + "/" + task_name + "_PA.txt";
+    std::string output_filePB = "test/" + env + "/" + task_name + "_PB.txt";
     PsiAnalyticsContext contextPA(PA, config_file, "PA.csv", output_filePA);
     PsiAnalyticsContext contextPB(PB, config_file, "PB.csv", output_filePB);
     auto futurePA = std::async(client_run, std::ref(contextPA));

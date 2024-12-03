@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <cassert>
 #include <coproto/Common/span.h>
 #include <coproto/Socket/AsioSocket.h>
@@ -14,6 +13,7 @@
 #include <vector>
 #include "client.h"
 #include "constants.h"
+#include "context.h"
 #include "joinData.h"
 #include "lpn.h"
 #include "opprf.h"
@@ -23,19 +23,33 @@
 void pb_map(
     const std::map<uint64_t, std::vector<std::pair<uint64_t, uint64_t>>> &map,
     const Matrix &data,
-    const oc::Matrix<block> &value,
+    const Matrix &_b,
+    const std::vector<block> &r1_,
+    std::vector<block> &r1,
     std::vector<block> &key,
     oc::Matrix<block> &r2,
     const PsiAnalyticsContext &context)
 {
-    for (auto &[local, index_id] : map) {
-        size_t i = local * context.max_in_bin;
-        for (size_t j = 0; j < index_id.size(); j++) {
-            key[i + j] = block(local, index_id[j].second);
-            auto m = minus(data[index_id[j].first], value[local]);
-            assert(m.size() == r2.cols());
-            for (size_t k = 0; k < m.size(); k++) {
-                r2(i + j, k) = m[k];
+    int index = 0;
+    for (int i = 0; i < context.bins; i++) {
+        auto it = map.find(i);
+        if (it != map.end()) {
+            auto &v = it->second;
+            for (auto &[id_index, id] : v) {
+                r1[index] = r1_[i];
+                if (id_index != -1) {
+                    key[index] = block(id, i);
+                    for (size_t j = 0; j < context.pb_features; j++) {
+                        r2(index, j) = data(id_index, j) - _b(i, j);
+                    }
+                } else {
+                    // 随便塞点假值
+                    key[index] = block(rand(), rand());
+                    for (size_t j = 0; j < context.pb_features; j++) {
+                        r2(index, j) = block(id, j);
+                    }
+                }
+                index++;
             }
         }
     }
@@ -65,44 +79,26 @@ void server_run(PsiAnalyticsContext &context)
     oc::PRNG prng(block(rand(), rand()));
     auto map = SimpleHash(pb.ids, context);
     std::cout << "finish simple hash\n";
-    std::vector<block> key(context.bins * context.max_in_bin);
-    std::vector<block> r1(context.bins * context.max_in_bin);
+    std::vector<block> key(context.pb_elems * context.funcs);
+    std::vector<block> r1(context.pb_elems * context.funcs);
+    // OPRF 的 KEY
     std::vector<block> r1_(context.bins);
-
-    prng.get(key.data(), context.bins * context.max_in_bin);
-
     oc::Matrix<block> _b(context.bins, context.pb_features);
-
-    for (size_t local = 0; local < context.bins; local++) {
-        block b(prng.get());
-        std::vector<block> a(context.pb_features);
-        prng.get(a.data(), context.pb_features);
-        for (size_t i = 0; i < a.size(); i++) {
-            _b(local, i) = a[i];
-        }
-        r1_[local] = b;
-        std::fill(
-            r1.begin() + local * context.max_in_bin,
-            r1.begin() + (local + 1) * context.max_in_bin,
-            b);
-    }
+    prng.get(r1_.data(), context.bins);
+    prng.get(_b.data(), context.bins * context.pb_features);
     {
-        oc::Matrix<block> r2(context.bins * context.max_in_bin, context.pb_features);
-        pb_map(map, pb.features, _b, key, r2, context);
-        prng.get(r2.data(), context.bins * context.max_in_bin * context.pb_features);
+        oc::Matrix<block> r2(context.pb_elems * context.funcs, context.pb_features);
+        prng.get(r2.data(), context.pb_elems * context.funcs * context.pb_features);
+        pb_map(map, pb.features, _b, r1_, r1, key, r2, context);
         opprfSender_1(key, r1, context);
-
         opprfSender_2(key, r2, context);
     }
     std::vector<block>().swap(key);
     std::vector<block>().swap(r1);
     auto newID = oprfReceiver(r1_, context);
-    std::vector<block>().swap(r1_);
     Matrix pb_data;
-    {
-        auto _a = pb_share(context);
-        pb_data = mergeMatrix(newID, _a, _b, context);
-    }
+    auto _a = pb_share(context);
+    pb_data = mergeMatrix(newID, _a, _b, context);
     if (context.use_ture_shuflle) {
         shuffle_sender(pb_data, context);
         auto [pa_data, p] = shuffle_receiver(context);
