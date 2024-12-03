@@ -13,12 +13,46 @@ git clone git@github.com:microsoft/vcpkg.git --depth 1
 
 ## iPrivjoin
 
+Clone:
+
 ```shell
 git clone git@github.com:nhysteric/iPrivJoin.git --recursive
+```
+
+Change `extern/volePSI/volePSI/SimpleIndex.cpp:276` 
+
+```cpp
+#if !defined(NDEBUG) && defined(ENABLE_BOOST)
+                auto B2 = get_bin_size(numBins, numBalls, statSecParam, false);
+                assert(B2 <= B);
+#endif
+                return B;
+            }
+        }
+```
+
+to 
+
+```cpp
+#if !defined(NDEBUG) && defined(ENABLE_BOOST)
+                auto B2 = get_bin_size(numBins, numBalls, statSecParam, false);
+                // assert(B2 <= B);
+                if (B2 > B)
+                    return B2;
+                else
+                    return B;
+#endif
+            }
+        }
+```
+
+Than compile:
+
+```shell
 cd iPrivJoin/extern/volePSI
-python3 build.py --debug -DVOLE_PSI_ENABLE_BOOST=ON  -DVOLE_PSI_ENABLE_OPPRF=ON  -DCMAKE_CXX_STANDARD=20
+python3 build.py -DVOLE_PSI_ENABLE_BOOST=ON
 cd ../..
-cmake --no-warn-unused-cli -DCMAKE_TOOLCHAIN_FILE=/home/nhy/vcpkg/scripts/buildsystems/vcpkg.cmake  -DCMAKE_BUILD_TYPE:STRING=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE  -DCMAKE_C_COMPILER:FILEPATH=/usr/bin/clang -DCMAKE_CXX_COMPILER:FILEPATH=/usr/bin/clang++  -DCMAKE_CXX_STANDARD=20 -B build .
+cmake --no-warn-unused-cli -DCMAKE_TOOLCHAIN_FILE=/home/nhy/vcpkg/scripts/buildsystems/vcpkg.cmake  -DCMAKE_BUILD_TYPE:STRING=Release -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE  -DCMAKE_C_COMPILER:FILEPATH=/usr/bin/clang -DCMAKE_CXX_COMPILER:FILEPATH=/usr/bin/clang++  -DCMAKE_CXX_STANDARD=20 -B build .
 cmake --build build
 ```
 
@@ -41,7 +75,6 @@ pa_elems = 15500
 pa_features = 15
 pb_elems = 15500
 pb_features = 14
-max_in_bin = 3
 ```
 
  ~~字段具体含义不解释了。~~
@@ -49,7 +82,7 @@ max_in_bin = 3
  实例：
 
  ```shell
- ./build/iPrivJoin application
+ ./build/iPrivJoin application wan
  ``` 
 
  

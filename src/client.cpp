@@ -60,7 +60,7 @@ void client_run(PsiAnalyticsContext &context)
     std::vector<block> key(context.bins);
     prng.get(key.data(), context.bins);
     for (const auto &[l, id] : map) {
-        key[l] = block(l, id.first);
+        key[l] = block(id.second, l);
     }
     auto r1 = opprfReceiver_1(key, context);
     std::cout << "finish opprf1\n";

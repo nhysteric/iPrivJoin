@@ -32,7 +32,8 @@ void opprfSender_1(
     coproto::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
     context.totalSend += chl.bytesSent();
-    chl.close();
+    coproto::sync_wait(chl.close());
+    ;
     const auto end_time = std::chrono::system_clock::now();
     const duration_millis opprf1_time = end_time - start_time;
     context.timings.opprf1st = opprf1_time.count();
@@ -57,7 +58,7 @@ std::vector<block> opprfReceiver_1(const std::vector<block> &key, PsiAnalyticsCo
     coproto::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
     context.totalSend += chl.bytesSent();
-    chl.close();
+    coproto::sync_wait(chl.close());
     const auto end_time = std::chrono::system_clock::now();
     const duration_millis opprf1_time = end_time - start_time;
     context.timings.opprf1st = opprf1_time.count();
@@ -83,7 +84,7 @@ void opprfSender_2(
     coproto::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
     context.totalSend += chl.bytesSent();
-    chl.close();
+    coproto::sync_wait(chl.close());
     const auto end_time = std::chrono::system_clock::now();
     const duration_millis opprf2_time = end_time - start_time;
     context.timings.opprf2nd = opprf2_time.count();
@@ -107,8 +108,7 @@ oc::Matrix<block> opprfReceiver_2(const std::vector<block> &key, PsiAnalyticsCon
     coproto::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
     context.totalSend += chl.bytesSent();
-    chl.close();
-
+    osuCrypto::cp::sync_wait(chl.close());
     const auto end_time = std::chrono::system_clock::now();
     const duration_millis opprf2_time = end_time - start_time;
     context.timings.opprf2nd = opprf2_time.count();

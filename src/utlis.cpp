@@ -115,7 +115,7 @@ void permuteMatrix(Matrix &a, const std::vector<size_t> &permute)
             temp(i, j) = a(permute[i], j);
         }
     }
-    a = temp;
+    a = std::move(temp);
 }
 
 std::map<uint64_t, std::pair<uint64_t, uint64_t>> CuckooHash(
@@ -169,15 +169,10 @@ std::map<uint64_t, std::vector<std::pair<uint64_t, uint64_t>>> SimpleHash(
             }
             if (loc_index_id_map.find(loc) != loc_index_id_map.end()) {
                 loc_index_id_map.at(loc).push_back(std::make_pair(i, ids[i]));
-                // if (loc_index_id_map.at(loc).size() > context.max_in_bin) {
-                //     std::cout << "max_in_bin with size" << loc_index_id_map.at(loc).size()
-                //               << std::endl;
-                //     throw "max_in_bin";
-                // }
             } else {
                 std::vector<std::pair<uint64_t, uint64_t>> temp;
                 temp.push_back(std::make_pair(i, ids[i]));
-                loc_index_id_map[loc] = temp;
+                loc_index_id_map[loc] = std::move(temp);
             }
         }
     }
@@ -289,7 +284,7 @@ void MatrixRecv(Matrix &result, PsiAnalyticsContext &context)
     coproto::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
     context.totalSend += chl.bytesSent();
-    osuCrypto::cp::sync_wait(chl.close());
+    coproto::sync_wait(chl.close());
 }
 
 void MatrixSend(const Matrix &value, PsiAnalyticsContext &context)
@@ -313,5 +308,5 @@ void MatrixSend(const Matrix &value, PsiAnalyticsContext &context)
     coproto::sync_wait(chl.flush());
     context.totalReceive += chl.bytesReceived();
     context.totalSend += chl.bytesSent();
-    osuCrypto::cp::sync_wait(chl.close());
+    coproto::sync_wait(chl.close());
 }
