@@ -1,9 +1,0 @@
-bins = 8192
-funcs = 4
-address = "localhost:8011"
-
-pa_elems = 3616
-pa_features = 100
-pb_elems = 3616
-pb_features = 3000
-max_in_bin = 10

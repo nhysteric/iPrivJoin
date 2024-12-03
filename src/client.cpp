@@ -62,19 +62,16 @@ void client_run(PsiAnalyticsContext &context)
     for (const auto &[l, id] : map) {
         key[l] = block(l, id.first);
     }
-    Matrix pa_data;
-    {
-        auto r1 = opprfReceiver_1(key, context);
-        std::cout << "finish opprf1\n";
-        auto r2 = opprfReceiver_2(key, context);
-        std::cout << "finish opprf2\n";
-        std::vector<block>().swap(key);
-        auto newID = oprfSender(r1, context);
-        std::cout << "finish oprf\n";
-        auto _a = pa_share(pa.features, context, map);
-        std::cout << "finish share\n";
-        pa_data = mergeMatrix(newID, _a, r2, context);
-    }
+    auto r1 = opprfReceiver_1(key, context);
+    std::cout << "finish opprf1\n";
+    auto r2 = opprfReceiver_2(key, context);
+    std::cout << "finish opprf2\n";
+    std::vector<block>().swap(key);
+    auto newID = oprfSender(r1, context);
+    std::cout << "finish oprf\n";
+    auto _a = pa_share(pa.features, context, map);
+    std::cout << "finish share\n";
+    Matrix pa_data = mergeMatrix(newID, _a, r2, context);
     if (context.use_ture_shuflle) {
         auto [pa_data_, p] = shuffle_receiver(context);
         permuteMatrix(pa_data, p);

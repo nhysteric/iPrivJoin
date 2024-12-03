@@ -49,7 +49,6 @@ struct PsiAnalyticsContext {
     uint64_t bins;
     uint64_t fill_bins;
     uint64_t funcs;
-    uint64_t max_in_bin;
 
     uint64_t pa_elems;
     uint64_t pa_features;
@@ -95,8 +94,6 @@ struct PsiAnalyticsContext {
         funcs = table["funcs"].value_or(2);
         address = table["address"].value_or("localhost:10011");
 
-        max_in_bin = table["max_in_bin"].value_or(0);
-
         pa_elems = table["pa_elems"].value_or(0);
         pb_elems = table["pb_elems"].value_or(0);
 
@@ -137,10 +134,12 @@ struct PsiAnalyticsContext {
         out << "Time for shuffle2nd: " << timings.shuffle2nd << " ms\n";
         out << "Time for khprf: " << timings.khprf << " ms\n";
         out << "Total runtime: " << timings.total << "ms\n";
-        out << "Total runtime-wait time: " << timings.total - timings.wait << "ms\n";
+        out << "Total runtime - wait time: " << timings.total - timings.wait << "ms\n";
         out << "Total receive: " << totalReceive * 1.0 / 1048576 << "MB\n";
         out << "Total send: " << totalSend * 1.0 / 1048576 << "MB\n";
-
+        out << "Total send + receive: " << (totalReceive + totalSend) * 1.0 / 1048576 << "MB\n";
+        out << "Bins: " << fill_bins << "\n";
+        out << "----------------------\n";
         if (fs.is_open()) {
             fs.close();
         }
