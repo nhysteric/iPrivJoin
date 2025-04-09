@@ -1,8 +1,10 @@
+An unofficial implementation of [iPrivJoin](https://ieeexplore.ieee.org/document/10159165/)
+
 # Build
 
-## 安装 [vcpkg](https://github.com/microsoft/vcpkg)
+## Install [vcpkg](https://github.com/microsoft/vcpkg)
 
-使用vcpkg安装布谷鸟哈希库[kuku](https://github.com/microsoft/Kuku)
+Install [kuku](https://github.com/microsoft/Kuku) by `vcpkg`
 
 ```shell
 git clone git@github.com:microsoft/vcpkg.git --depth 1
@@ -52,19 +54,18 @@ Than compile:
 cd iPrivJoin/extern/volePSI
 python3 build.py -DVOLE_PSI_ENABLE_BOOST=ON
 cd ../..
-cmake --no-warn-unused-cli -DCMAKE_TOOLCHAIN_FILE=/home/nhy/vcpkg/scripts/buildsystems/vcpkg.cmake  -DCMAKE_BUILD_TYPE:STRING=Release -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE  -DCMAKE_C_COMPILER:FILEPATH=/usr/bin/clang -DCMAKE_CXX_COMPILER:FILEPATH=/usr/bin/clang++  -DCMAKE_CXX_STANDARD=20 -B build .
+cmake --no-warn-unused-cli -DCMAKE_TOOLCHAIN_FILE=~/vcpkg/scripts/buildsystems/vcpkg.cmake  -DCMAKE_BUILD_TYPE:STRING=Release -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE  -DCMAKE_C_COMPILER:FILEPATH=/usr/bin/clang -DCMAKE_CXX_COMPILER:FILEPATH=/usr/bin/clang++  -DCMAKE_CXX_STANDARD=20 -B build .
 cmake --build build
 ```
 
-将`DCMAKE_TOOLCHAIN_FILE`换成自己的vcpkg路径。如果不使用clang、clang++：`DCMAKE_CXX_COMPILER`与`DCMAKE_C_COMPILER`也要更换。确保编译器支持c++20
+Change `DCMAKE_TOOLCHAIN_FILE` to your path of `vcpkg`,and make sure your compiler supports C++20.
 
 ## Run
 
 ```shell
-./build/iPrivJoin {config名}
+./build/iPrivJoin {config_name} {env_type}
 ```
-
-在`test/config`下配置参数文件，如下所示：
+A config is a TOML file, with fields and format as follows:
 
 ```toml
 bins = 16384
@@ -77,12 +78,12 @@ pb_elems = 15500
 pb_features = 14
 ```
 
- ~~字段具体含义不解释了。~~
-
- 实例：
+Example:
 
  ```shell
- ./build/iPrivJoin application wan
+ ./build/iPrivJoin example lan
  ``` 
+
+You will find the output files under `test/lan`.
 
  
